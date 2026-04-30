@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vocl Expo QR Code</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2196F3;
+        }
+        .qr-code {
+            margin: 30px auto;
+            padding: 20px;
+            background: white;
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+        }
+        .instructions {
+            margin-top: 30px;
+            text-align: left;
+            line-height: 1.6;
+        }
+        .instructions h3 {
+            color: #333;
+        }
+        .btn {
+            background-color: #2196F3;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        .btn:hover {
+            background-color: #0b7dda;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 Vocl App</h1>
+        <p>Scan this QR code with the Expo Go app to test the Vocl vocabulary learning app.</p>
+
+        <div class="qr-code">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=exp%3A%2F%2F192.168.1.100%3A19000" alt="Expo QR Code" width="300" height="300">
+            <p><strong>Note:</strong> Replace 192.168.1.100 with your local IP address</p>
+        </div>
+
+        <div class="instructions">
+            <h3>📋 How to Test:</h3>
+            <ol>
+                <li><strong>Install Expo Go:</strong> Download the Expo Go app from the App Store (iOS) or Google Play Store (Android)</li>
+                <li><strong>Start Development Server:</strong> Run <code>npx expo start</code> in the project directory</li>
+                <li><strong>Scan QR Code:</strong> Open Expo Go and scan the QR code above (update with your local IP)</li>
+                <li><strong>Test Features:</strong> Try creating workspaces, adding vocabulary, and taking the daily challenge</li>
+            </ol>
+        </div>
+
+        <button class="btn" onclick="window.open('https://expo.dev/client', '_blank')">Download Expo Go</button>
+    </div>
+
+    <script>
+        // Simple script to show local IP
+        document.addEventListener('DOMContentLoaded', function() {
+            // This would normally fetch the local IP, but for security reasons browsers don't allow this
+            console.log('Vocl QR Code Generator Ready');
+        });
+    </script>
+</body>
+</html>

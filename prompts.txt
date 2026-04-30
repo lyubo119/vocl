@@ -1,0 +1,46 @@
+i want to vibecode an app that has a vocabulary list and you get every day 10 vocabs you should translate by typing the vocab in the other language. it should have notifications and simple statistics (a daily streak count that resets after one day and after two days if the streak is above 7 when not done the daily 10 vocabs, a calendar chart with green marked days when done the 10 challenge) involved and also the function to download the list of vocabs as csv or to upload new ones by typing them in in the list (settings) or uploading additional .csvs that will be also filtered for duplicates or errors. the main function for adding should be a visual recognition when for instance reading a book and then making a dot above the word you dont know the app should recognize the word and translate and put to the list. There should also be the function for a freeplay mode where you just get vocabs and play endlessly. the vocabs should all have an internal system/algorithm so you dont get all the time the same vocab but always the ones that seem to be the most challenging (like each vocab with their own weights), also there is no end in the whole app, so it can be that some vocabs will repeat also for weights creation and a long-term learning. i thought of using local gemma 4 on android for the visual recognition and maybe also for translation and checking or use an external free translate api (you should discuss with me whats best).  there should be several workspaces which the user can create for languages ofr example one would be german-english, the other german-spanish, ... each workspace has its own list of vocabs. there should also be used a certain design language which my lash website already has (give me a prompt for openclaude to summariye the whole design language so i can use it for this app as well). also give me a CLAUDE.md file for my openclaude so it knows how to operate and give me also a basic structure tree of this project for the android app where im hoing to use expo go for testing. and also give me a system prompt for this project for claude the chatbot
+
+optimize and restructure this prompt for claude using all techniques to get the best results
+
+
+
+14.04.26
+
+the app should start on the last opened workspace and over the settings symbol i should be able to change it. 
+
+- the free play mode is missing
+- use modern white icons, not those flashy ones
+- in the vocabulary list there should be a 3 dot menu with export as .csv the whole vocab list only with words and translations or upload your own .csv to get whole chunks of new words
+- the main principle of the vocabulary learning is by typing in the correct translation by yourself with the default mobile keyboard and then clicking on submit arrow on the right or enter so see whether it was correect or not and proceeding to the next (at the end of the 10 vocabs challenge show the points)
+- make a general icon navigation at the bottom of the screen, on the left the 10 vocabs challenge, then the free play, then a slightly bigger round plus icon in  black with white circle for adding new vocabularies, then the vocabulary list and then the workspace settings, so in total 5 different navigation options
+
+proceed with fulfilling the
+Implementation Plan.md
+
+
+
+21.04.26
+1.
+make the 10 vocabs challenge and the infinite play mode into one tab at the left
+the second tab is going to be a statistics tab where you can see the daily streak of the 10 day vocab challenge and see it on the calendar (when there were days 
+done the 10 vocabs they should be highlighted with the accent color)
+this metrics should be measured be the app and visualized in the statistics tab visualized in a dashboard correctly:
+Consistency
+ - Current streak (days active)
+Quality Metrics (core skill KPIs)
+ - Accuracy / correctness %
+ - Completion rate %
+ - Average rating/score per attempt
+ - “Best score” and “average score” split
+ - Improvement Over Time
+ - 7d / 30d progress graph
+Efficiency
+ - Attempts needed before success
+ - Error rate trend (down is good)
+Output & Impact
+ - Total completed items (recordings/tasks)
+
+2.
+develop an own image recognition camera for recognizing scanned words with the mobile camera. the user should click on the plus tab nav icon, the camera should pop up, then the user take a picture internally in the app, the model recognizes all words seen and the user selects the word/phrase he wants to translate.
+Integrate a LibreTranslate API so the taken word automatically gets translated so the user doesnt have to make a vocab entry manually
+of course it should also be possible to edit the entries or add manually in the vocab list nav tab.
