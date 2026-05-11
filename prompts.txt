@@ -44,3 +44,8 @@ Output & Impact
 develop an own image recognition camera for recognizing scanned words with the mobile camera. the user should click on the plus tab nav icon, the camera should pop up, then the user take a picture internally in the app, the model recognizes all words seen and the user selects the word/phrase he wants to translate.
 Integrate a LibreTranslate API so the taken word automatically gets translated so the user doesnt have to make a vocab entry manually
 of course it should also be possible to edit the entries or add manually in the vocab list nav tab.
+
+- in the vocabulary tab the user should be able to swipe a vocab right to delete (a red trash icon appears on it that should be clicked to delete)
+- all error notifications should look consistent designed the same way like in the danger zone in settings tab the delete this workspace button + appear
+gently on the bottom of the screen (when keyboard open, slightly above it)
+- fix the export as .csv function, currently it says cannot read proprty utf8 of undefined

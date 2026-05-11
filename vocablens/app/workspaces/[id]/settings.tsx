@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWorkspace } from '../../../hooks/WorkspaceContext';
 import { colors, spacing, radii, typography } from '../../../constants/theme';
 import Icon from '../../../components/ui/Icon';
+import { initDatabase } from '../../../lib/db/schema';
+import { getSetting, setSetting, deleteSetting, SETTINGS_KEYS } from '../../../lib/db/queries/settings';
 
 type Props = {
   onNavigateToWorkspaces: () => void;
@@ -27,6 +29,44 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
   const [sourceLang, setSourceLang] = useState(activeWorkspace?.source_lang ?? '');
   const [targetLang, setTargetLang] = useState(activeWorkspace?.target_lang ?? '');
   const [saving, setSaving] = useState(false);
+
+  // MyMemory email setting
+  const [myMemoryEmail, setMyMemoryEmail] = useState('');
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailLoaded, setEmailLoaded] = useState(false);
+
+  useEffect(() => {
+    const loadEmail = async () => {
+      try {
+        const db = await initDatabase();
+        const saved = await getSetting(db, SETTINGS_KEYS.MYMEMORY_EMAIL);
+        setMyMemoryEmail(saved ?? '');
+      } catch {
+        // non-critical — ignore
+      } finally {
+        setEmailLoaded(true);
+      }
+    };
+    loadEmail();
+  }, []);
+
+  const handleSaveEmail = async () => {
+    setEmailSaving(true);
+    try {
+      const db = await initDatabase();
+      const trimmed = myMemoryEmail.trim();
+      if (trimmed) {
+        await setSetting(db, SETTINGS_KEYS.MYMEMORY_EMAIL, trimmed);
+      } else {
+        await deleteSetting(db, SETTINGS_KEYS.MYMEMORY_EMAIL);
+      }
+      Alert.alert('Saved', trimmed ? 'Email saved. You now have 50,000 chars/day.' : 'Email cleared. Using anonymous quota (5,000 chars/day).');
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to save email');
+    } finally {
+      setEmailSaving(false);
+    }
+  };
 
   if (!activeWorkspace) {
     return (
@@ -191,6 +231,39 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
         </TouchableOpacity>
       </View>
 
+      {/* Translation / MyMemory */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Translation (MyMemory)</Text>
+        <View style={styles.card}>
+          <Text style={styles.emailHint}>
+            Enter your email to unlock 50,000 chars/day (instead of 5,000). No account needed — MyMemory uses it for quota tracking only.
+          </Text>
+          <Text style={styles.fieldLabel}>Email</Text>
+          <TextInput
+            style={styles.input}
+            value={myMemoryEmail}
+            onChangeText={setMyMemoryEmail}
+            placeholder="your@email.com"
+            placeholderTextColor={colors.textCtaUnfocused}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            editable={emailLoaded}
+          />
+          <TouchableOpacity
+            style={[styles.saveBtn, emailSaving && { opacity: 0.6 }]}
+            onPress={handleSaveEmail}
+            disabled={emailSaving}
+            activeOpacity={0.7}
+          >
+            {emailSaving
+              ? <ActivityIndicator size="small" color="#000" />
+              : <Text style={styles.saveBtnText}>Save Email</Text>
+            }
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* Danger zone */}
       <View style={styles.section}>
         <Text style={[styles.sectionLabel, { color: colors.error }]}>Danger Zone</Text>
@@ -229,6 +302,7 @@ const styles = StyleSheet.create({
   editBtn: { padding: spacing.s },
 
   fieldLabel: { ...typography.smallCaps, marginBottom: spacing.xs, marginTop: spacing.s },
+  emailHint: { ...typography.body, fontSize: 13, color: colors.textSecondary, marginBottom: spacing.s },
   input: {
     backgroundColor: colors.bgButtonSub,
     borderRadius: radii.sm,

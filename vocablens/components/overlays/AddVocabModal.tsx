@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,9 @@ import {
 import { createVocabItem } from '../../lib/db/queries/vocab';
 import { getNewVocabItem } from '../../lib/scheduler/spacedRepetition';
 import { initDatabase } from '../../lib/db/schema';
+import { getSetting, SETTINGS_KEYS } from '../../lib/db/queries/settings';
+import { translateWord } from '../../lib/translation/myMemory';
+import { useWorkspace } from '../../hooks/WorkspaceContext';
 import { colors, spacing, radii, typography } from '../../constants/theme';
 
 type Props = {
@@ -24,29 +27,107 @@ type Props = {
 };
 
 export default function AddVocabModal({ visible, onClose, workspaceId }: Props) {
+  const { activeWorkspace } = useWorkspace();
+
   const [newWord, setNewWord] = useState('');
   const [newTranslation, setNewTranslation] = useState('');
   const [newNotes, setNewNotes] = useState('');
   const [adding, setAdding] = useState(false);
+  const [translating, setTranslating] = useState(false);
+
+  // True once the user has manually edited the translation field.
+  // We never auto-overwrite after that.
+  const translationEditedByUser = useRef(false);
 
   const reset = () => {
     setNewWord('');
     setNewTranslation('');
     setNewNotes('');
+    translationEditedByUser.current = false;
   };
 
-  const handleAdd = async () => {
-    if (!newWord.trim() || !newTranslation.trim()) {
-      Alert.alert('Error', 'Word and translation are required');
+  // ── Auto-translate with 700 ms debounce ─────────────────────────────────────
+  // Fires whenever the word changes. Cancelled immediately if the user starts
+  // typing again, or if the translation field has been manually edited.
+  useEffect(() => {
+    const word = newWord.trim();
+
+    // Clear auto-fill when word is erased
+    if (!word) {
+      if (!translationEditedByUser.current) {
+        setNewTranslation('');
+      }
+      setTranslating(false);
       return;
     }
+
+    // Don't overwrite what the user typed manually
+    if (translationEditedByUser.current) return;
+
+    const sourceLang = activeWorkspace?.source_lang;
+    const targetLang = activeWorkspace?.target_lang;
+    if (!sourceLang || !targetLang) return;
+
+    let cancelled = false;
+
+    const timer = setTimeout(async () => {
+      setTranslating(true);
+      try {
+        const db = await initDatabase();
+        const email = await getSetting(db, SETTINGS_KEYS.MYMEMORY_EMAIL);
+
+        // Workspace convention: source_lang = unknown (being learned),
+        // target_lang = known (native). Word is typed in source_lang;
+        // translation should be in target_lang.
+        // MyMemory langpair: "sourceLang|targetLang"
+        const result = await translateWord(word, sourceLang, targetLang, email);
+
+        if (!cancelled && !translationEditedByUser.current) {
+          setNewTranslation(result.translatedText);
+        }
+      } catch {
+        // Silent — user can fill in manually or leave blank
+      } finally {
+        if (!cancelled) setTranslating(false);
+      }
+    }, 700);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [newWord, activeWorkspace?.source_lang, activeWorkspace?.target_lang]);
+
+  // ── Reset state when modal is opened/closed ──────────────────────────────────
+  useEffect(() => {
+    if (!visible) {
+      // Small delay so the closing animation doesn't glitch
+      const t = setTimeout(reset, 300);
+      return () => clearTimeout(t);
+    }
+  }, [visible]);
+
+  // ── Add word ─────────────────────────────────────────────────────────────────
+  const handleAdd = async () => {
+    if (!newWord.trim()) {
+      Alert.alert('Error', 'Please enter a word');
+      return;
+    }
+    // If translation is still loading, wait — the button is disabled during
+    // this state anyway, but guard here too.
+    if (translating) return;
+
     setAdding(true);
     try {
       const db = await initDatabase();
-      const newVocab = getNewVocabItem(workspaceId, newWord.trim(), newTranslation.trim(), newNotes.trim() || undefined);
+      const newVocab = getNewVocabItem(
+        workspaceId,
+        newWord.trim(),
+        newTranslation.trim(),   // may be '' — that's valid
+        newNotes.trim() || undefined
+      );
       await createVocabItem(db, newVocab);
-      reset();
-      onClose();
+      onClose(); // reset handled via visible effect
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Failed to add word');
     } finally {
@@ -55,9 +136,16 @@ export default function AddVocabModal({ visible, onClose, workspaceId }: Props) 
   };
 
   const handleClose = () => {
-    reset();
     onClose();
   };
+
+  // ── Derived UI state ─────────────────────────────────────────────────────────
+  const busy = adding || translating;
+  // source_lang = unknown (learned), target_lang = known (native)
+  const langPairLabel =
+    activeWorkspace
+      ? `${activeWorkspace.source_lang} → ${activeWorkspace.target_lang}`
+      : null;
 
   return (
     <Modal
@@ -74,31 +162,76 @@ export default function AddVocabModal({ visible, onClose, workspaceId }: Props) 
           <Pressable style={styles.sheet} onPress={e => e.stopPropagation()}>
             <View style={styles.handle} />
             <Text style={styles.title}>Add Word</Text>
-            <Text style={styles.subtitle}>Enter a word and its translation.</Text>
+            <Text style={styles.subtitle}>
+              {langPairLabel
+                ? `Type a word in ${activeWorkspace!.source_lang.toUpperCase()} — translation is fetched automatically.`
+                : 'Enter a word and its translation.'}
+            </Text>
 
+            {/* ── Word ── */}
             <Text style={styles.label}>Word</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter the word"
+              placeholder={`Word in ${activeWorkspace?.source_lang?.toUpperCase() ?? 'the learned language'}`}
               placeholderTextColor={colors.textCtaUnfocused}
               value={newWord}
-              onChangeText={setNewWord}
+              onChangeText={text => {
+                // If word is cleared, reset the manual-edit flag so auto-fill
+                // can kick in again when the user types something new.
+                if (!text.trim()) {
+                  translationEditedByUser.current = false;
+                }
+                setNewWord(text);
+              }}
               autoCapitalize="none"
+              autoCorrect={false}
               returnKeyType="next"
             />
 
-            <Text style={styles.label}>Translation</Text>
+            {/* ── Translation ── */}
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>
+                Translation{' '}
+                <Text style={styles.optionalHint}>(optional)</Text>
+              </Text>
+              {translating && (
+                <ActivityIndicator
+                  size="small"
+                  color={colors.accentPurple}
+                  style={styles.spinner}
+                />
+              )}
+            </View>
             <TextInput
-              style={styles.input}
-              placeholder="Enter the translation"
-              placeholderTextColor={colors.textCtaUnfocused}
+              style={[
+                styles.input,
+                translating && styles.inputTranslating,
+              ]}
+              placeholder={
+                translating
+                  ? 'Translating…'
+                  : langPairLabel
+                  ? `Auto-translated (${langPairLabel})`
+                  : 'Enter the translation'
+              }
+              placeholderTextColor={
+                translating ? colors.accentPurple : colors.textCtaUnfocused
+              }
               value={newTranslation}
-              onChangeText={setNewTranslation}
+              onChangeText={text => {
+                translationEditedByUser.current = true;
+                setNewTranslation(text);
+              }}
               autoCapitalize="none"
+              autoCorrect={false}
               returnKeyType="next"
+              editable={!translating}
             />
 
-            <Text style={styles.label}>Notes (optional)</Text>
+            {/* ── Notes ── */}
+            <Text style={styles.label}>
+              Notes <Text style={styles.optionalHint}>(optional)</Text>
+            </Text>
             <TextInput
               style={[styles.input, styles.notesInput]}
               placeholder="Any helpful context…"
@@ -109,10 +242,11 @@ export default function AddVocabModal({ visible, onClose, workspaceId }: Props) 
               returnKeyType="done"
             />
 
+            {/* ── Actions ── */}
             <TouchableOpacity
-              style={[styles.addBtn, adding && styles.btnDisabled]}
+              style={[styles.addBtn, busy && styles.btnDisabled]}
               onPress={handleAdd}
-              disabled={adding}
+              disabled={busy}
               activeOpacity={0.7}
             >
               {adding
@@ -121,7 +255,11 @@ export default function AddVocabModal({ visible, onClose, workspaceId }: Props) 
               }
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.cancelBtn} onPress={handleClose} activeOpacity={0.7}>
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={handleClose}
+              activeOpacity={0.7}
+            >
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
           </Pressable>
@@ -155,7 +293,24 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 22, fontWeight: '700', color: '#ffffff', marginBottom: spacing.xs },
   subtitle: { ...typography.body, marginBottom: spacing.m },
-  label: { ...typography.smallCaps, marginBottom: spacing.xs },
+
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  label: { ...typography.smallCaps },
+  optionalHint: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
+    textTransform: 'none',
+    letterSpacing: 0,
+    fontWeight: '400',
+  },
+  spinner: { marginRight: 2 },
+
   input: {
     backgroundColor: colors.bgButtonSub,
     borderRadius: radii.sm,
@@ -165,7 +320,13 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     marginBottom: spacing.m,
   },
+  inputTranslating: {
+    borderWidth: 1,
+    borderColor: colors.accentPurple,
+    opacity: 0.7,
+  },
   notesInput: { minHeight: 72, textAlignVertical: 'top' },
+
   addBtn: {
     backgroundColor: '#ffffff',
     borderRadius: radii.md,
@@ -174,7 +335,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.s,
   },
   addBtnText: { fontSize: 15, fontWeight: '600', color: '#000000' },
-  btnDisabled: { opacity: 0.6 },
+  btnDisabled: { opacity: 0.5 },
+
   cancelBtn: {
     backgroundColor: colors.bgButtonSub,
     borderRadius: radii.md,
