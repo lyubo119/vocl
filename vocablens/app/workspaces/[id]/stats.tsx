@@ -17,12 +17,15 @@ import Icon from '../../../components/ui/Icon';
 
 const ACCENT = colors.accentPurple; // #d1a0d7
 
-/** Returns last N days as YYYY-MM-DD strings, oldest first */
-const lastNDays = (n: number): string[] => {
+/** Returns N days as YYYY-MM-DD strings, ending on the current week's Saturday */
+const getCalendarDays = (n: number): string[] => {
   const days: string[] = [];
+  const today = new Date();
+  const offsetToEndOfWeek = 6 - today.getDay();
+  
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date();
-    d.setDate(d.getDate() - i);
+    d.setDate(today.getDate() + offsetToEndOfWeek - i);
     days.push(d.toISOString().split('T')[0]);
   }
   return days;
@@ -111,7 +114,7 @@ const statCardStyles = StyleSheet.create({
 
 /** 35-day calendar strip highlighting completed challenge days */
 function CalendarStrip({ completedDates }: { completedDates: string[] }) {
-  const days = lastNDays(35);
+  const days = getCalendarDays(35);
   const completedSet = new Set(completedDates);
   const today = new Date().toISOString().split('T')[0];
 

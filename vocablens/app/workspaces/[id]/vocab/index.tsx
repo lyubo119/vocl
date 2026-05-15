@@ -6,7 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   TextInput,
-  Alert,
   Modal,
   Pressable,
   KeyboardAvoidingView,
@@ -21,6 +20,7 @@ import { getNewVocabItem } from '../../../../lib/scheduler/spacedRepetition';
 import { exportVocabToCsv } from '../../../../lib/csv/csvExport';
 import { pickAndParseCsv } from '../../../../lib/csv/csvImport';
 import { useWorkspace } from '../../../../hooks/WorkspaceContext';
+import { useToast } from '../../../../components/overlays/ToastContext';
 import { colors, spacing, radii, typography, componentStyles } from '../../../../constants/theme';
 import Icon from '../../../../components/ui/Icon';
 
@@ -30,6 +30,7 @@ type Props = {
 
 export default function VocabListScreen({ onAddWord }: Props) {
   const { activeWorkspace } = useWorkspace();
+  const { showToast } = useToast();
   const workspaceId = activeWorkspace?.id ?? '';
   const insets = useSafeAreaInsets();
 
@@ -49,7 +50,7 @@ export default function VocabListScreen({ onAddWord }: Props) {
         const vocab = await getVocabByWorkspace(database, workspaceId);
         setVocabItems(vocab);
       } catch (err) {
-        Alert.alert('Error', err instanceof Error ? err.message : 'Failed to load vocabulary');
+        showToast('Error', err instanceof Error ? err.message : 'Failed to load vocabulary', 'error');
       } finally {
         setLoading(false);
       }
@@ -60,14 +61,14 @@ export default function VocabListScreen({ onAddWord }: Props) {
   const handleExport = async () => {
     setMenuVisible(false);
     if (vocabItems.length === 0) {
-      Alert.alert('Nothing to export', 'Add some words first.');
+      showToast('Nothing to export', 'Add some words first.', 'info');
       return;
     }
     setExporting(true);
     try {
       await exportVocabToCsv(vocabItems, activeWorkspace?.name ?? 'vocab');
     } catch (err) {
-      Alert.alert('Export failed', err instanceof Error ? err.message : 'Unknown error');
+      showToast('Export failed', err instanceof Error ? err.message : 'Unknown error', 'error');
     } finally {
       setExporting(false);
     }
@@ -95,9 +96,9 @@ export default function VocabListScreen({ onAddWord }: Props) {
           skipped++;
         }
       }
-      Alert.alert('Import complete', `Added ${added} words${skipped > 0 ? `, skipped ${skipped} duplicates` : ''}.`);
+      showToast('Import complete', `Added ${added} words${skipped > 0 ? `, skipped ${skipped} duplicates` : ''}.`, 'success');
     } catch (err) {
-      Alert.alert('Import failed', err instanceof Error ? err.message : 'Unknown error');
+      showToast('Import failed', err instanceof Error ? err.message : 'Unknown error', 'error');
     } finally {
       setImporting(false);
     }
@@ -114,7 +115,7 @@ export default function VocabListScreen({ onAddWord }: Props) {
     });
 
     if (toDeactivate.length === 0) {
-      Alert.alert('Notice', 'No active mastered words found (80%+ accuracy).');
+      showToast('Notice', 'No active mastered words found (80%+ accuracy).', 'info');
       return;
     }
 
@@ -127,9 +128,9 @@ export default function VocabListScreen({ onAddWord }: Props) {
       // Refresh list
       const vocab = await getVocabByWorkspace(db, workspaceId);
       setVocabItems(vocab);
-      Alert.alert('Success', `Deactivated ${updatedCount} mastered word${updatedCount !== 1 ? 's' : ''}.`);
+      showToast('Success', `Deactivated ${updatedCount} mastered word${updatedCount !== 1 ? 's' : ''}.`, 'success');
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Unknown error');
+      showToast('Error', err instanceof Error ? err.message : 'Unknown error', 'error');
     }
   };
 
@@ -140,7 +141,7 @@ export default function VocabListScreen({ onAddWord }: Props) {
       const updated = await updateVocabItem(db, item.id, { is_deactivated: newStatus });
       setVocabItems(prev => prev.map(v => v.id === item.id ? updated : v));
     } catch (err) {
-      Alert.alert('Error', 'Failed to update word status.');
+      showToast('Error', 'Failed to update word status.', 'error');
     }
   };
 

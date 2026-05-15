@@ -20,4 +20,5 @@ export const deleteSetting = async (db: SQLite.SQLiteDatabase, key: string): Pro
 export const SETTINGS_KEYS = {
   LAST_WORKSPACE_ID: 'last_workspace_id',
   MYMEMORY_EMAIL: 'mymemory_email',
+  DAILY_REMINDERS_ENABLED: 'daily_reminders_enabled',
 } as const;

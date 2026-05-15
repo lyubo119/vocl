@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  Alert,
   Modal,
   Pressable,
   KeyboardAvoidingView,
@@ -18,6 +17,7 @@ import { initDatabase } from '../../lib/db/schema';
 import { getSetting, SETTINGS_KEYS } from '../../lib/db/queries/settings';
 import { translateWord } from '../../lib/translation/myMemory';
 import { useWorkspace } from '../../hooks/WorkspaceContext';
+import { useToast } from './ToastContext';
 import { colors, spacing, radii, typography } from '../../constants/theme';
 
 type Props = {
@@ -28,6 +28,7 @@ type Props = {
 
 export default function AddVocabModal({ visible, onClose, workspaceId }: Props) {
   const { activeWorkspace } = useWorkspace();
+  const { showToast } = useToast();
 
   const [newWord, setNewWord] = useState('');
   const [newTranslation, setNewTranslation] = useState('');
@@ -110,7 +111,7 @@ export default function AddVocabModal({ visible, onClose, workspaceId }: Props) 
   // ── Add word ─────────────────────────────────────────────────────────────────
   const handleAdd = async () => {
     if (!newWord.trim()) {
-      Alert.alert('Error', 'Please enter a word');
+      showToast('Error', 'Please enter a word', 'error');
       return;
     }
     // If translation is still loading, wait — the button is disabled during
@@ -127,9 +128,10 @@ export default function AddVocabModal({ visible, onClose, workspaceId }: Props) 
         newNotes.trim() || undefined
       );
       await createVocabItem(db, newVocab);
+      showToast('Added', `"${newWord.trim()}" added to vocabulary`, 'success');
       onClose(); // reset handled via visible effect
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to add word');
+      showToast('Error', err instanceof Error ? err.message : 'Failed to add word', 'error');
     } finally {
       setAdding(false);
     }

@@ -5,9 +5,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  Alert,
   ScrollView,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWorkspace } from '../../../hooks/WorkspaceContext';
@@ -15,6 +15,8 @@ import { colors, spacing, radii, typography } from '../../../constants/theme';
 import Icon from '../../../components/ui/Icon';
 import { initDatabase } from '../../../lib/db/schema';
 import { getSetting, setSetting, deleteSetting, SETTINGS_KEYS } from '../../../lib/db/queries/settings';
+import { requestNotificationPermissions, scheduleDailyReminders, cancelDailyReminders } from '../../../lib/notifications';
+import { useToast } from '../../../components/overlays/ToastContext';
 
 type Props = {
   onNavigateToWorkspaces: () => void;
@@ -35,19 +37,25 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
   const [emailSaving, setEmailSaving] = useState(false);
   const [emailLoaded, setEmailLoaded] = useState(false);
 
-  useEffect(() => {
-    const loadEmail = async () => {
+  // Daily Reminders setting
+  const [dailyReminders, setDailyReminders] = useState(false);
+  const { showToast } = useToast();
+
+    const loadSettings = async () => {
       try {
         const db = await initDatabase();
-        const saved = await getSetting(db, SETTINGS_KEYS.MYMEMORY_EMAIL);
-        setMyMemoryEmail(saved ?? '');
+        const emailSaved = await getSetting(db, SETTINGS_KEYS.MYMEMORY_EMAIL);
+        setMyMemoryEmail(emailSaved ?? '');
+        
+        const remindersSaved = await getSetting(db, SETTINGS_KEYS.DAILY_REMINDERS_ENABLED);
+        setDailyReminders(remindersSaved === 'true');
       } catch {
         // non-critical — ignore
       } finally {
         setEmailLoaded(true);
       }
     };
-    loadEmail();
+    loadSettings();
   }, []);
 
   const handleSaveEmail = async () => {
@@ -60,11 +68,33 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
       } else {
         await deleteSetting(db, SETTINGS_KEYS.MYMEMORY_EMAIL);
       }
-      Alert.alert('Saved', trimmed ? 'Email saved. You now have 50,000 chars/day.' : 'Email cleared. Using anonymous quota (5,000 chars/day).');
+      showToast('Saved', trimmed ? 'Email saved. You now have 50,000 chars/day.' : 'Email cleared. Using anonymous quota (5,000 chars/day).', 'success');
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to save email');
+      showToast('Error', err instanceof Error ? err.message : 'Failed to save email', 'error');
     } finally {
       setEmailSaving(false);
+    }
+  };
+
+  const handleToggleReminders = async (value: boolean) => {
+    try {
+      if (value) {
+        const granted = await requestNotificationPermissions();
+        if (!granted) {
+          showToast('Permission Denied', 'Please enable notifications in your device settings.', 'error');
+          return;
+        }
+        await scheduleDailyReminders(false);
+      } else {
+        await cancelDailyReminders();
+      }
+
+      const db = await initDatabase();
+      await setSetting(db, SETTINGS_KEYS.DAILY_REMINDERS_ENABLED, value ? 'true' : 'false');
+      setDailyReminders(value);
+      showToast('Saved', value ? 'Daily reminders enabled' : 'Daily reminders disabled', 'success');
+    } catch (err) {
+      showToast('Error', 'Failed to update reminder settings', 'error');
     }
   };
 
@@ -81,7 +111,7 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
 
   const handleSave = async () => {
     if (!name.trim() || !sourceLang.trim() || !targetLang.trim()) {
-      Alert.alert('Error', 'All fields are required');
+      showToast('Error', 'All fields are required', 'error');
       return;
     }
     setSaving(true);
@@ -92,8 +122,9 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
         target_lang: targetLang.trim(),
       });
       setEditMode(false);
+      showToast('Saved', 'Workspace updated', 'success');
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to save');
+      showToast('Error', err instanceof Error ? err.message : 'Failed to save', 'error');
     } finally {
       setSaving(false);
     }
@@ -113,7 +144,7 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
               await removeWorkspace(activeWorkspace.id);
               onNavigateToWorkspaces();
             } catch (err) {
-              Alert.alert('Error', err instanceof Error ? err.message : 'Failed to delete');
+              showToast('Error', err instanceof Error ? err.message : 'Failed to delete', 'error');
             }
           },
         },
@@ -264,6 +295,23 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
         </View>
       </View>
 
+      {/* Notifications */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Notifications</Text>
+        <View style={[styles.card, styles.rowCard]}>
+          <View style={styles.cardInfo}>
+            <Text style={styles.settingTitle}>Daily Reminders</Text>
+            <Text style={styles.settingDesc}>Get a notification at 08:00 to complete your 10-vocab challenge</Text>
+          </View>
+          <Switch
+            value={dailyReminders}
+            onValueChange={handleToggleReminders}
+            trackColor={{ false: colors.bgButtonSub, true: colors.accentPurple }}
+            thumbColor={'#ffffff'}
+          />
+        </View>
+      </View>
+
       {/* Danger zone */}
       <View style={styles.section}>
         <Text style={[styles.sectionLabel, { color: colors.error }]}>Danger Zone</Text>
@@ -300,6 +348,9 @@ const styles = StyleSheet.create({
   langText: { fontSize: 13, color: colors.accentPurple, fontWeight: '500', letterSpacing: 1, textTransform: 'uppercase' },
   langArrow: { color: colors.textSecondary },
   editBtn: { padding: spacing.s },
+  rowCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.m },
+  settingTitle: { fontSize: 16, fontWeight: '600', color: '#ffffff', marginBottom: 2 },
+  settingDesc: { fontSize: 13, color: colors.textSecondary },
 
   fieldLabel: { ...typography.smallCaps, marginBottom: spacing.xs, marginTop: spacing.s },
   emailHint: { ...typography.body, fontSize: 13, color: colors.textSecondary, marginBottom: spacing.s },

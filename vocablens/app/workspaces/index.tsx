@@ -6,7 +6,7 @@ import {
   FlatList,
   TouchableOpacity,
   TextInput,
-  Alert,
+  TextInput,
   Modal,
   KeyboardAvoidingView,
   Platform,
@@ -19,6 +19,7 @@ import { Workspace } from '../../lib/db/schema';
 import { getVocabByWorkspace, createVocabItem } from '../../lib/db/queries/vocab';
 import { getNewVocabItem } from '../../lib/scheduler/spacedRepetition';
 import { useRouter } from 'expo-router';
+import { useToast } from '../../components/overlays/ToastContext';
 import { colors, spacing, radii, typography, componentStyles } from '../../constants/theme';
 import Icon from '../../components/ui/Icon';
 
@@ -32,10 +33,11 @@ export default function WorkspacesScreen() {
   const [copyVocab, setCopyVocab] = useState(true);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { showToast } = useToast();
 
   const handleCreateWorkspace = async () => {
     if (!newWorkspaceName.trim()) {
-      Alert.alert('Error', 'Please enter a workspace name');
+      showToast('Error', 'Please enter a workspace name', 'error');
       return;
     }
     setCreating(true);
@@ -66,9 +68,10 @@ export default function WorkspacesScreen() {
       setSourceLang('en');
       setTargetLang('de');
       setModalVisible(false);
+      showToast('Created', `Workspace "${ws.name}" created`, 'success');
       router.push(`/workspaces/${ws.id}`);
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to create workspace');
+      showToast('Error', err instanceof Error ? err.message : 'Failed to create workspace', 'error');
     } finally {
       setCreating(false);
     }

@@ -22,6 +22,8 @@ import {
   saveSessionAnswer,
 } from '../../../lib/db/queries/sessions';
 import { getStreakByWorkspace, createOrUpdateStreak } from '../../../lib/db/queries/streaks';
+import { getSetting, SETTINGS_KEYS } from '../../../lib/db/queries/settings';
+import { scheduleDailyReminders } from '../../../lib/notifications';
 import { getTodayDateString } from '../../../lib/utils/dateUtils';
 import { colors, spacing, radii, typography } from '../../../constants/theme';
 import Icon from '../../../components/ui/Icon';
@@ -251,6 +253,19 @@ function ChallengeMode() {
               grace_pending: 0,
               last_completed: today,
             });
+
+            // Handle daily reminders skip
+            try {
+              const remindersEnabled = await getSetting(db, SETTINGS_KEYS.DAILY_REMINDERS_ENABLED);
+              if (remindersEnabled === 'true') {
+                const now = new Date();
+                if (now.getHours() < 8) {
+                  await scheduleDailyReminders(true);
+                } else {
+                  await scheduleDailyReminders(false);
+                }
+              }
+            } catch { /* non-fatal */ }
           }
         } catch { /* non-fatal */ }
       }
