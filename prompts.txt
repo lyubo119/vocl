@@ -49,3 +49,9 @@ of course it should also be possible to edit the entries or add manually in the 
 - all error notifications should look consistent designed the same way like in the danger zone in settings tab the delete this workspace button + appear
 gently on the bottom of the screen (when keyboard open, slightly above it)
 - fix the export as .csv function, currently it says cannot read proprty utf8 of undefined
+
+15.05.26
+- in the vocabulary list section, the words should be sorted alphabetically and there should be a search bar to find thembeneath the stats in the header
+- also when the user taps and holds a word it should be deactivated (get light grey and dont appear in the 10 vocab challenge or the infinite play)
+- add another funtion under the 3 dots: you can disable/deactivate all words that have an accuracy 80%+
+- when creating a new workspace the user should be able to copy the word list from an existing workspace if it has the same languages (also when theyre switched, then the words should be switched appropriately)
