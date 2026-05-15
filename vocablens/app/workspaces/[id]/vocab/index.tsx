@@ -16,7 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as SQLite from 'expo-sqlite';
 import { initDatabase } from '../../../../lib/db/schema';
-import { getVocabByWorkspace, createVocabItem, deleteVocabItem } from '../../../../lib/db/queries/vocab';
+import { getVocabByWorkspace, createVocabItem, deleteVocabItem, updateVocabItem } from '../../../../lib/db/queries/vocab';
 import { getNewVocabItem } from '../../../../lib/scheduler/spacedRepetition';
 import { exportVocabToCsv } from '../../../../lib/csv/csvExport';
 import { pickAndParseCsv } from '../../../../lib/csv/csvImport';
@@ -39,6 +39,7 @@ export default function VocabListScreen({ onAddWord }: Props) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const loadVocab = async () => {
@@ -102,6 +103,54 @@ export default function VocabListScreen({ onAddWord }: Props) {
     }
   };
 
+  const handleDeactivateMastered = async () => {
+    setMenuVisible(false);
+    if (!db) return;
+    
+    const toDeactivate = vocabItems.filter(item => {
+      if (item.is_deactivated) return false;
+      if (item.total_attempts === 0) return false;
+      return (item.total_correct / item.total_attempts) >= 0.8;
+    });
+
+    if (toDeactivate.length === 0) {
+      Alert.alert('Notice', 'No active mastered words found (80%+ accuracy).');
+      return;
+    }
+
+    try {
+      let updatedCount = 0;
+      for (const item of toDeactivate) {
+        await updateVocabItem(db, item.id, { is_deactivated: 1 });
+        updatedCount++;
+      }
+      // Refresh list
+      const vocab = await getVocabByWorkspace(db, workspaceId);
+      setVocabItems(vocab);
+      Alert.alert('Success', `Deactivated ${updatedCount} mastered word${updatedCount !== 1 ? 's' : ''}.`);
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'Unknown error');
+    }
+  };
+
+  const toggleDeactivate = async (item: any) => {
+    if (!db) return;
+    try {
+      const newStatus = item.is_deactivated ? 0 : 1;
+      const updated = await updateVocabItem(db, item.id, { is_deactivated: newStatus });
+      setVocabItems(prev => prev.map(v => v.id === item.id ? updated : v));
+    } catch (err) {
+      Alert.alert('Error', 'Failed to update word status.');
+    }
+  };
+
+  const filteredVocab = vocabItems
+    .filter(v => {
+      const q = searchQuery.toLowerCase();
+      return v.word.toLowerCase().includes(q) || v.translation.toLowerCase().includes(q);
+    })
+    .sort((a, b) => a.word.localeCompare(b.word));
+
   const getAccuracyColor = (item: any) => {
     if (item.total_attempts === 0) return colors.textSecondary;
     const acc = item.total_correct / item.total_attempts;
@@ -152,35 +201,58 @@ export default function VocabListScreen({ onAddWord }: Props) {
         </View>
       </View>
 
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <Icon name="search" size={20} color={colors.textSecondary} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search vocabulary..."
+          placeholderTextColor={colors.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCorrect={false}
+          autoCapitalize="none"
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearSearchBtn}>
+            <Icon name="x-circle" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+        )}
+      </View>
+
       {/* List */}
-      {vocabItems.length === 0 ? (
+      {filteredVocab.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Icon name="list" size={48} color={colors.textSecondary} />
-          <Text style={styles.emptyTitle}>No Words Yet</Text>
-          <Text style={styles.emptyText}>Tap + to add your first vocabulary word.</Text>
+          <Text style={styles.emptyTitle}>{searchQuery ? 'No Results' : 'No Words Yet'}</Text>
+          <Text style={styles.emptyText}>{searchQuery ? 'Try adjusting your search query.' : 'Tap + to add your first vocabulary word.'}</Text>
         </View>
       ) : (
         <FlatList
-          data={vocabItems}
+          data={filteredVocab}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingHorizontal: spacing.l, paddingBottom: 20 }}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
-            <View style={styles.vocabCard}>
+            <TouchableOpacity 
+              style={[styles.vocabCard, item.is_deactivated && styles.vocabCardDeactivated]}
+              onLongPress={() => toggleDeactivate(item)}
+              activeOpacity={0.7}
+            >
               <View style={styles.vocabMain}>
-                <Text style={styles.vocabWord}>{item.word}</Text>
-                <Text style={styles.vocabTranslation}>{item.translation}</Text>
+                <Text style={[styles.vocabWord, item.is_deactivated && styles.textDeactivated]}>{item.word}</Text>
+                <Text style={[styles.vocabTranslation, item.is_deactivated && styles.textDeactivated]}>{item.translation}</Text>
               </View>
-              {item.notes ? <Text style={styles.vocabNotes}>{item.notes}</Text> : null}
+              {item.notes ? <Text style={[styles.vocabNotes, item.is_deactivated && styles.textDeactivated]}>{item.notes}</Text> : null}
               <View style={styles.vocabDivider} />
               <View style={styles.vocabStats}>
-                <Text style={styles.vocabStatLabel}>Weight: <Text style={styles.vocabStatValue}>{item.weight.toFixed(2)}</Text></Text>
-                <Text style={styles.vocabStatLabel}>Streak: <Text style={styles.vocabStatValue}>{item.correct_streak}</Text></Text>
-                <Text style={styles.vocabStatLabel}>Accuracy: <Text style={[styles.vocabStatValue, { color: getAccuracyColor(item) }]}>
+                <Text style={[styles.vocabStatLabel, item.is_deactivated && styles.textDeactivated]}>Weight: <Text style={styles.vocabStatValue}>{item.weight.toFixed(2)}</Text></Text>
+                <Text style={[styles.vocabStatLabel, item.is_deactivated && styles.textDeactivated]}>Streak: <Text style={styles.vocabStatValue}>{item.correct_streak}</Text></Text>
+                <Text style={[styles.vocabStatLabel, item.is_deactivated && styles.textDeactivated]}>Accuracy: <Text style={[styles.vocabStatValue, !item.is_deactivated && { color: getAccuracyColor(item) }]}>
                   {item.total_attempts > 0 ? Math.round((item.total_correct / item.total_attempts) * 100) + '%' : '—'}
                 </Text></Text>
               </View>
-            </View>
+            </TouchableOpacity>
           )}
         />
       )}
@@ -202,6 +274,11 @@ export default function VocabListScreen({ onAddWord }: Props) {
             <TouchableOpacity style={styles.menuItem} onPress={handleImport} activeOpacity={0.7}>
               <Icon name="upload" size={20} color="#ffffff" />
               <Text style={styles.menuItemText}>Import from CSV</Text>
+            </TouchableOpacity>
+            <View style={styles.menuItemDivider} />
+            <TouchableOpacity style={styles.menuItem} onPress={handleDeactivateMastered} activeOpacity={0.7}>
+              <Icon name="eye-off" size={20} color="#ffffff" />
+              <Text style={styles.menuItemText}>Deactivate Mastered (80%+)</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -260,6 +337,28 @@ const styles = StyleSheet.create({
   vocabStats: { flexDirection: 'row', justifyContent: 'space-between' },
   vocabStatLabel: { ...typography.smallCaps, fontSize: 10 },
   vocabStatValue: { color: '#ffffff', fontWeight: '500' },
+  vocabCardDeactivated: { backgroundColor: '#2a2a2a', opacity: 0.6 },
+  textDeactivated: { color: colors.textSecondary },
+
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.md,
+    marginHorizontal: spacing.l,
+    marginBottom: spacing.m,
+    paddingHorizontal: spacing.m,
+    height: 44,
+  },
+  searchInput: {
+    flex: 1,
+    color: '#ffffff',
+    fontSize: 16,
+    marginLeft: spacing.s,
+  },
+  clearSearchBtn: {
+    padding: spacing.xs,
+  },
 
   // Menu
   menuOverlay: {

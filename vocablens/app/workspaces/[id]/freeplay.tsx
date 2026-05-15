@@ -45,7 +45,7 @@ export default function FreePlayScreen() {
   const loadVocab = async () => {
     if (!db || !workspaceId) return;
     try {
-      const all = await getVocabByWorkspace(db, workspaceId);
+      const all = (await getVocabByWorkspace(db, workspaceId)).filter(v => !v.is_deactivated);
       if (all.length === 0) {
         setErrorMessage('No vocabulary yet. Add words first!');
         setPhase('question');

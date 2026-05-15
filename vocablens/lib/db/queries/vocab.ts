@@ -19,12 +19,13 @@ export const createVocabItem = async (db: SQLite.SQLiteDatabase, vocab: Omit<Voc
     created_at: new Date().toISOString(),
     correct_streak: 0,
     total_attempts: 0,
-    total_correct: 0
+    total_correct: 0,
+    is_deactivated: 0
   };
 
   await db.runAsync(
-    'INSERT INTO vocab (id, workspace_id, word, translation, notes, weight, last_seen, correct_streak, total_attempts, total_correct, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [newVocab.id, newVocab.workspace_id, newVocab.word, newVocab.translation, newVocab.notes, newVocab.weight, newVocab.last_seen, newVocab.correct_streak, newVocab.total_attempts, newVocab.total_correct, newVocab.created_at]
+    'INSERT INTO vocab (id, workspace_id, word, translation, notes, weight, last_seen, correct_streak, total_attempts, total_correct, created_at, is_deactivated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [newVocab.id, newVocab.workspace_id, newVocab.word, newVocab.translation, newVocab.notes, newVocab.weight, newVocab.last_seen, newVocab.correct_streak, newVocab.total_attempts, newVocab.total_correct, newVocab.created_at, newVocab.is_deactivated]
   );
 
   return newVocab;
@@ -32,8 +33,8 @@ export const createVocabItem = async (db: SQLite.SQLiteDatabase, vocab: Omit<Voc
 
 export const updateVocabItem = async (db: SQLite.SQLiteDatabase, id: string, updates: Partial<Omit<VocabItem, 'id' | 'created_at'>>): Promise<VocabItem> => {
   await db.runAsync(
-    'UPDATE vocab SET word = ?, translation = ?, notes = ?, weight = ?, last_seen = ?, correct_streak = ?, total_attempts = ?, total_correct = ? WHERE id = ?',
-    [updates.word, updates.translation, updates.notes, updates.weight, updates.last_seen, updates.correct_streak, updates.total_attempts, updates.total_correct, id]
+    'UPDATE vocab SET word = coalesce(?, word), translation = coalesce(?, translation), notes = coalesce(?, notes), weight = coalesce(?, weight), last_seen = coalesce(?, last_seen), correct_streak = coalesce(?, correct_streak), total_attempts = coalesce(?, total_attempts), total_correct = coalesce(?, total_correct), is_deactivated = coalesce(?, is_deactivated) WHERE id = ?',
+    [updates.word ?? null, updates.translation ?? null, updates.notes ?? null, updates.weight ?? null, updates.last_seen ?? null, updates.correct_streak ?? null, updates.total_attempts ?? null, updates.total_correct ?? null, updates.is_deactivated ?? null, id]
   );
   const updated = await getVocabById(db, id);
   if (!updated) throw new Error('Vocab item not found after update');

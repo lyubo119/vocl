@@ -16,17 +16,20 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWorkspace } from '../../hooks/WorkspaceContext';
 import { Workspace } from '../../lib/db/schema';
+import { getVocabByWorkspace, createVocabItem } from '../../lib/db/queries/vocab';
+import { getNewVocabItem } from '../../lib/scheduler/spacedRepetition';
 import { useRouter } from 'expo-router';
 import { colors, spacing, radii, typography, componentStyles } from '../../constants/theme';
 import Icon from '../../components/ui/Icon';
 
 export default function WorkspacesScreen() {
-  const { workspaces, activeWorkspace, loading, error, createNewWorkspace, setWorkspace } = useWorkspace();
+  const { workspaces, activeWorkspace, loading, error, createNewWorkspace, setWorkspace, db } = useWorkspace();
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [sourceLang, setSourceLang] = useState('en');
   const [targetLang, setTargetLang] = useState('de');
   const [modalVisible, setModalVisible] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [copyVocab, setCopyVocab] = useState(true);
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -38,6 +41,27 @@ export default function WorkspacesScreen() {
     setCreating(true);
     try {
       const ws = await createNewWorkspace(newWorkspaceName.trim(), sourceLang.trim() || 'en', targetLang.trim() || 'de');
+      
+      const matchingWorkspace = workspaces.find(w => 
+        (w.source_lang.toLowerCase() === (sourceLang.trim() || 'en').toLowerCase() && w.target_lang.toLowerCase() === (targetLang.trim() || 'de').toLowerCase()) ||
+        (w.source_lang.toLowerCase() === (targetLang.trim() || 'de').toLowerCase() && w.target_lang.toLowerCase() === (sourceLang.trim() || 'en').toLowerCase())
+      );
+
+      if (matchingWorkspace && copyVocab && db) {
+        const oldVocab = await getVocabByWorkspace(db, matchingWorkspace.id);
+        const isInverted = matchingWorkspace.source_lang.toLowerCase() === (targetLang.trim() || 'de').toLowerCase();
+        for (const item of oldVocab) {
+          try {
+            const word = isInverted ? item.translation : item.word;
+            const translation = isInverted ? item.word : item.translation;
+            const newVocab = getNewVocabItem(ws.id, word, translation);
+            await createVocabItem(db, newVocab);
+          } catch (e) {
+            // ignore errors
+          }
+        }
+      }
+
       setNewWorkspaceName('');
       setSourceLang('en');
       setTargetLang('de');
@@ -176,6 +200,26 @@ export default function WorkspacesScreen() {
                 </View>
               </View>
 
+              {(() => {
+                const matchingWorkspace = workspaces.find(w => 
+                  (w.source_lang.toLowerCase() === (sourceLang.trim() || 'en').toLowerCase() && w.target_lang.toLowerCase() === (targetLang.trim() || 'de').toLowerCase()) ||
+                  (w.source_lang.toLowerCase() === (targetLang.trim() || 'de').toLowerCase() && w.target_lang.toLowerCase() === (sourceLang.trim() || 'en').toLowerCase())
+                );
+
+                if (!matchingWorkspace) return null;
+
+                return (
+                  <TouchableOpacity 
+                    style={styles.copyToggle} 
+                    onPress={() => setCopyVocab(!copyVocab)}
+                    activeOpacity={0.7}
+                  >
+                    <Icon name={copyVocab ? "check-square" : "square"} size={20} color={copyVocab ? colors.success : colors.textSecondary} />
+                    <Text style={styles.copyToggleText}>Copy words from {matchingWorkspace.name}</Text>
+                  </TouchableOpacity>
+                );
+              })()}
+
               <TouchableOpacity
                 style={[styles.createButton, creating && styles.buttonDisabled]}
                 onPress={handleCreateWorkspace}
@@ -267,6 +311,19 @@ const styles = StyleSheet.create({
   },
   langRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.m },
   langArrowModal: { fontSize: 20, color: colors.textSecondary, marginBottom: spacing.l + 4 },
+  copyToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.m,
+    gap: spacing.s,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: spacing.m,
+    borderRadius: radii.md,
+  },
+  copyToggleText: {
+    fontSize: 15,
+    color: '#ffffff',
+  },
   createButton: {
     backgroundColor: '#ffffff',
     borderRadius: radii.md,

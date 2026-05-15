@@ -28,9 +28,17 @@ export const initDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
       total_attempts INTEGER NOT NULL DEFAULT 0,
       total_correct INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
+      is_deactivated INTEGER NOT NULL DEFAULT 0,
       UNIQUE(workspace_id, word COLLATE NOCASE)
     );`
   );
+
+  // Migration: add is_deactivated if it doesn't exist
+  try {
+    await db.execAsync(`ALTER TABLE vocab ADD COLUMN is_deactivated INTEGER NOT NULL DEFAULT 0;`);
+  } catch (e) {
+    // Column might already exist, ignore error
+  }
 
   // Create sessions table
   await db.execAsync(
@@ -102,6 +110,7 @@ export type VocabItem = {
   total_attempts: number;
   total_correct: number;
   created_at: string;
+  is_deactivated?: number;
 };
 
 export type Session = {

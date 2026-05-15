@@ -130,7 +130,7 @@ function ChallengeMode() {
         return;
       }
 
-      const allVocab = await getVocabByWorkspace(db, workspaceId);
+      const allVocab = (await getVocabByWorkspace(db, workspaceId)).filter(v => !v.is_deactivated);
       if (allVocab.length === 0) {
         setErrorMessage('No vocabulary yet. Add words first!');
         setPhase('question');
@@ -443,7 +443,7 @@ function FreePlayMode() {
   const loadVocab = async () => {
     if (!db || !workspaceId) return;
     try {
-      const all = await getVocabByWorkspace(db, workspaceId);
+      const all = (await getVocabByWorkspace(db, workspaceId)).filter(v => !v.is_deactivated);
       if (all.length === 0) {
         setErrorMessage('No vocabulary yet. Add words first!');
         setPhase('question');
