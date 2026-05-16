@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { formatLocalDate, parseLocalDateString } from '../../utils/dateUtils';
 
 export type DailyAccuracy = {
   date: string; // YYYY-MM-DD
@@ -39,8 +40,7 @@ const dateRange = (daysBack: number): { from: string; to: string } => {
   const to = new Date();
   const from = new Date();
   from.setDate(from.getDate() - daysBack + 1);
-  const fmt = (d: Date) => d.toISOString().split('T')[0];
-  return { from: fmt(from), to: fmt(to) };
+  return { from: formatLocalDate(from), to: formatLocalDate(to) };
 };
 
 export const getStatsForWorkspace = async (
@@ -97,10 +97,10 @@ export const getStatsForWorkspace = async (
   const buildDailyAccuracy = (daysBack: number): DailyAccuracy[] => {
     const { from, to } = dateRange(daysBack);
     const days: DailyAccuracy[] = [];
-    const cursor = new Date(from);
-    const end = new Date(to);
+    const cursor = parseLocalDateString(from);
+    const end = parseLocalDateString(to);
     while (cursor <= end) {
-      const dateStr = cursor.toISOString().split('T')[0];
+      const dateStr = formatLocalDate(cursor);
       const dayAnswers = allAnswers.filter((a) => a.created_at.startsWith(dateStr));
       const dayCorrect = dayAnswers.filter((a) => a.is_correct === 1).length;
       days.push({

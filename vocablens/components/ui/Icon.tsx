@@ -27,7 +27,9 @@ type IconName =
   | 'eye-off'
   | 'square'
   | 'check-square'
-  | 'x-circle';
+  | 'x-circle'
+  | 'info'
+  | 'check-circle';
 
 type IconProps = {
   name: IconName;
@@ -67,6 +69,8 @@ const iconPaths: Record<IconName, string> = {
   square: 'M3 3h18v18H3z',
   'check-square': 'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
   'x-circle': 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM15 9l-6 6M9 9l6 6',
+  info: 'M12 16v-4M12 8h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z',
+  'check-circle': 'M9 12l2 2 4-4M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z',
 };
 
 const Icon: React.FC<IconProps> = ({ name, size = 24, color = '#ffffff', strokeWidth = 1.8 }) => {

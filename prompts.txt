@@ -55,3 +55,70 @@ gently on the bottom of the screen (when keyboard open, slightly above it)
 - also when the user taps and holds a word it should be deactivated (get light grey and dont appear in the 10 vocab challenge or the infinite play)
 - add another funtion under the 3 dots: you can disable/deactivate all words that have an accuracy 80%+
 - when creating a new workspace the user should be able to copy the word list from an existing workspace if it has the same languages (also when theyre switched, then the words should be switched appropriately)
+
+18.05.26
+1.
+finish these tasks and make the app work again:
+- redesign all notifications that appear on the screen appropriately to the design language of the whole app
+- add in the settings tab a toggle for daily reminders, so the app sends a daily notification at 8:00 which the user can click on and get
+directly redirected to the 10vocab challenge. the notification should only be sent if the user didnt do the 10vocab challenge before 08:00 (24h format) and the toggle is activated in the settings
+- update the calendar in the stats tab appropriately. today is the 16.05.2026, Saturday. the next year with February 29th is going to be 2028
+
+2.
+- the user should by swiping a word to the left in the vocabulary list delete it, there should come up a red trash icon on the right of the word and by clicking it the word gets deleted from the lis
+- when toggling the daily reminder on there comes an error message: failed to update daily reminder settings, fix that
+- when the "addnew vocab" window is opened, the user should be able to swipe it down on the handle that was created there (the grey line above the content on the overlay)
+- fix these errors for a seemless usage of the app:
+Call Stack
+  construct (<native>)
+  apply (<native>)
+  _construct (node_modules\@babel\runtime\helpers\construct.js)
+  Wrapper (node_modules\@babel\runtime\helpers\wrapNativeSuper.js)
+  construct (<native>)
+  _callSuper (node_modules\@babel\runtime\helpers\callSuper.js)
+  NamelessError (node_modules\expo-router\node_modules\@expo\metro-runtime\src\metroServerLogs.native.ts)
+  captureCurrentStack (node_modules\expo-router\node_modules\@expo\metro-runtime\src\metroServerLogs.native.ts)
+  HMRClient.log (node_modules\expo-router\node_modules\@expo\metro-runtime\src\metroServerLogs.native.ts)
+  console.level (node_modules\react-native\Libraries\Core\setUpDeveloperTools.js)
+  warnOfExpoGoPushUsage (node_modules\expo-notifications\build\warnOfExpoGoPushUsage.js)
+  addPushTokenListener (node_modules\expo-notifications\build\TokenEmitter.js)
+  <global> (node_modules\expo-notifications\build\DevicePushTokenAutoRegistration.fx.js)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (node_modules\expo-notifications\build\getExpoPushTokenAsync.js)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (node_modules\expo-notifications\build\index.js)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (app\_layout.tsx)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  Object.defineProperties$argument_1._layoutTsx.get (app)
+  metroContext (app)
+  node.loadRoute (node_modules\expo-router\build\getRoutesCore.js)
+  getDirectoryTree (node_modules\expo-router\build\getRoutesCore.js)
+  getDirectoryTree (node_modules\expo-router\build\getRoutesCore.js)
+  getRoutes (node_modules\expo-router\build\getRoutesCore.js)
+  getRoutes (node_modules\expo-router\build\getRoutes.js)
+  useStore (node_modules\expo-router\build\global-state\router-store.js)
+  ContextNavigator (node_modules\expo-router\build\ExpoRoot.js)
+  callComponent.reactStackBottomFrame (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  renderWithHooks (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  updateFunctionComponent (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  beginWork (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  runWithFiberInDEV (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performUnitOfWork (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  workLoopSync (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  renderRootSync (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performWorkOnRoot (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performWorkOnRootViaSchedulerTask (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js) 
+
+Call Stack
+  ExpoRoot (node_modules\expo-router\build\ExpoRoot.js)
+  App (node_modules\expo-router\build\qualified-entry.js)
+  WithDevTools (node_modules\expo\src\launch\withDevTools.tsx)

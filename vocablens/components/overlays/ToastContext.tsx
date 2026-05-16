@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { Animated, StyleSheet, Text, View, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, spacing, radii, typography } from '../../constants/theme';
+import { colors, spacing, radii } from '../../constants/theme';
 import Icon from '../ui/Icon';
 
 export type ToastType = 'success' | 'error' | 'info';
@@ -81,17 +81,17 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const getIconName = (type: ToastType) => {
     switch (type) {
-      case 'success': return 'check-circle';
-      case 'error': return 'x-circle';
+      case 'success': return 'check';
+      case 'error': return 'x';
       case 'info': return 'info';
     }
   };
 
-  const getIconColor = (type: ToastType) => {
+  const getAccentColor = (type: ToastType) => {
     switch (type) {
       case 'success': return colors.success;
       case 'error': return colors.error;
-      case 'info': return colors.accentPurple;
+      case 'info': return '#7ca8d7';
     }
   };
 
@@ -103,15 +103,15 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           style={[
             styles.toastContainer,
             {
-              top: Platform.OS === 'ios' ? insets.top || spacing.l : spacing.l,
+              top: Platform.OS === 'ios' ? (insets.top || spacing.l) + spacing.s : spacing.l + spacing.s,
               transform: [{ translateY }],
               opacity,
             }
           ]}
         >
-          <View style={styles.toastContent}>
-            <View style={styles.iconContainer}>
-              <Icon name={getIconName(toast.type) as any} size={20} color={getIconColor(toast.type)} />
+          <View style={[styles.toastContent, { borderColor: `${getAccentColor(toast.type)}50` }]}>
+            <View style={[styles.iconContainer, { backgroundColor: `${getAccentColor(toast.type)}20` }]}>
+              <Icon name={getIconName(toast.type) as any} size={18} color={getAccentColor(toast.type)} />
             </View>
             <View style={styles.textContainer}>
               <Text style={styles.title}>{toast.title}</Text>
@@ -132,35 +132,41 @@ const styles = StyleSheet.create({
     zIndex: 9999,
     elevation: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
   },
   toastContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.bgCard,
+    backgroundColor: '#121212',
     borderRadius: radii.xl,
-    padding: spacing.m,
+    paddingVertical: spacing.s + 2,
+    paddingHorizontal: spacing.m,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
   },
   iconContainer: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: spacing.m,
   },
   textContainer: {
     flex: 1,
   },
   title: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#ffffff',
-    letterSpacing: 0.3,
+    color: colors.textPrimary,
+    letterSpacing: 0.2,
   },
   message: {
-    fontSize: 13,
+    fontSize: 12,
     color: colors.textSecondary,
     marginTop: 2,
-    lineHeight: 18,
+    lineHeight: 17,
   },
 });

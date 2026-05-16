@@ -1,8 +1,9 @@
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
@@ -22,7 +23,14 @@ export async function requestNotificationPermissions() {
   return true;
 }
 
-export async function scheduleDailyReminders(skipToday: boolean = false) {
+export type ScheduleDailyRemindersOptions = {
+  workspaceId?: string;
+  skipToday?: boolean;
+};
+
+export async function scheduleDailyReminders(options: ScheduleDailyRemindersOptions = {}) {
+  const { workspaceId, skipToday = false } = options;
+
   // Clear any existing notifications first
   await Notifications.cancelAllScheduledNotificationsAsync();
 
@@ -51,9 +59,17 @@ export async function scheduleDailyReminders(skipToday: boolean = false) {
         title: '10-Vocab Challenge 🧠',
         body: 'Time for your daily vocabulary practice!',
         sound: true,
-        data: { route: 'challenge' },
+        data: {
+          route: 'challenge',
+          workspaceId,
+          targetTab: 'play',
+          targetMode: 'challenge',
+        },
       },
-      trigger: triggerDate,
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: triggerDate,
+      },
     });
   }
 }

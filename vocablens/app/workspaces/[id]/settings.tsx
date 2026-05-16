@@ -15,8 +15,11 @@ import { colors, spacing, radii, typography } from '../../../constants/theme';
 import Icon from '../../../components/ui/Icon';
 import { initDatabase } from '../../../lib/db/schema';
 import { getSetting, setSetting, deleteSetting, SETTINGS_KEYS } from '../../../lib/db/queries/settings';
+import { getSessionByDate } from '../../../lib/db/queries/sessions';
+import { getTodayDateString } from '../../../lib/utils/dateUtils';
 import { requestNotificationPermissions, scheduleDailyReminders, cancelDailyReminders } from '../../../lib/notifications';
 import { useToast } from '../../../components/overlays/ToastContext';
+import ConfirmDialog from '../../../components/overlays/ConfirmDialog';
 
 type Props = {
   onNavigateToWorkspaces: () => void;
@@ -39,8 +42,11 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
 
   // Daily Reminders setting
   const [dailyReminders, setDailyReminders] = useState(false);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const { showToast } = useToast();
 
+  useEffect(() => {
     const loadSettings = async () => {
       try {
         const db = await initDatabase();
@@ -57,6 +63,18 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
     };
     loadSettings();
   }, []);
+
+  const shouldSkipTodayReminder = async (): Promise<boolean> => {
+    if (!activeWorkspace?.id) return false;
+
+    const db = await initDatabase();
+    const todaySession = await getSessionByDate(db, activeWorkspace.id, getTodayDateString());
+    if (!todaySession || todaySession.completed !== 1) {
+      return false;
+    }
+
+    return new Date(todaySession.created_at).getHours() < 8;
+  };
 
   const handleSaveEmail = async () => {
     setEmailSaving(true);
@@ -84,7 +102,9 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
           showToast('Permission Denied', 'Please enable notifications in your device settings.', 'error');
           return;
         }
-        await scheduleDailyReminders(false);
+
+        const skipToday = await shouldSkipTodayReminder();
+        await scheduleDailyReminders({ workspaceId: activeWorkspace?.id, skipToday });
       } else {
         await cancelDailyReminders();
       }
@@ -131,25 +151,20 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
   };
 
   const handleDelete = () => {
-    Alert.alert(
-      'Delete Workspace',
-      `Delete "${activeWorkspace.name}" and all its vocabulary? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await removeWorkspace(activeWorkspace.id);
-              onNavigateToWorkspaces();
-            } catch (err) {
-              showToast('Error', err instanceof Error ? err.message : 'Failed to delete', 'error');
-            }
-          },
-        },
-      ]
-    );
+    setDeleteConfirmVisible(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    setDeleting(true);
+    try {
+      await removeWorkspace(activeWorkspace.id);
+      setDeleteConfirmVisible(false);
+      onNavigateToWorkspaces();
+    } catch (err) {
+      showToast('Error', err instanceof Error ? err.message : 'Failed to delete', 'error');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -320,6 +335,17 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
           <Text style={styles.deleteBtnText}>Delete This Workspace</Text>
         </TouchableOpacity>
       </View>
+
+      <ConfirmDialog
+        visible={deleteConfirmVisible}
+        title="Delete Workspace"
+        message={`Delete "${activeWorkspace.name}" and all its vocabulary? This cannot be undone.`}
+        confirmText="Delete"
+        destructive
+        loading={deleting}
+        onCancel={() => setDeleteConfirmVisible(false)}
+        onConfirm={handleConfirmDelete}
+      />
     </ScrollView>
   );
 }

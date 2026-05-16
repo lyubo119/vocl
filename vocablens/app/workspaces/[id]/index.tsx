@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import BottomTabBar from '../../../components/navigation/BottomTabBar';
 import { colors } from '../../../constants/theme';
+import { useWorkspace } from '../../../hooks/WorkspaceContext';
 
 // Screens
 import PlayScreen from './play';
@@ -12,10 +13,23 @@ import WorkspaceSettingsScreen from './settings';
 import AddVocabModal from '../../../components/overlays/AddVocabModal';
 
 export default function WorkspaceLayout() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, targetTab, targetMode } = useLocalSearchParams<{ id: string; targetTab?: string; targetMode?: string }>();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<string>('play');
+  const { activeWorkspace, setWorkspace } = useWorkspace();
+  const [activeTab, setActiveTab] = useState<string>(targetTab === 'stats' || targetTab === 'vocab' || targetTab === 'settings' ? targetTab : 'play');
   const [addModalVisible, setAddModalVisible] = useState(false);
+
+  useEffect(() => {
+    if (id && activeWorkspace?.id !== id) {
+      setWorkspace(id);
+    }
+  }, [activeWorkspace?.id, id, setWorkspace]);
+
+  useEffect(() => {
+    if (targetTab === 'stats' || targetTab === 'vocab' || targetTab === 'settings' || targetTab === 'play') {
+      setActiveTab(targetTab);
+    }
+  }, [targetTab]);
 
   const handleTabPress = (tabKey: string) => {
     if (tabKey === 'add') {
@@ -28,7 +42,7 @@ export default function WorkspaceLayout() {
   const renderScreen = () => {
     switch (activeTab) {
       case 'play':
-        return <PlayScreen />;
+        return <PlayScreen forcedMode={targetMode === 'freeplay' ? 'freeplay' : targetMode === 'challenge' ? 'challenge' : undefined} />;
       case 'stats':
         return <StatsScreen />;
       case 'vocab':

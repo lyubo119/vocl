@@ -24,7 +24,7 @@ import {
 import { getStreakByWorkspace, createOrUpdateStreak } from '../../../lib/db/queries/streaks';
 import { getSetting, SETTINGS_KEYS } from '../../../lib/db/queries/settings';
 import { scheduleDailyReminders } from '../../../lib/notifications';
-import { getTodayDateString } from '../../../lib/utils/dateUtils';
+import { formatLocalDate, getTodayDateString } from '../../../lib/utils/dateUtils';
 import { colors, spacing, radii, typography } from '../../../constants/theme';
 import Icon from '../../../components/ui/Icon';
 
@@ -41,11 +41,25 @@ type AnswerRecord = {
   correct: boolean;
 };
 
+type PlayScreenProps = {
+  forcedMode?: PlayMode;
+};
+
 // ── Main PlayScreen ───────────────────────────────────────────────────────────
 
-export default function PlayScreen() {
+export default function PlayScreen(props: PlayScreenProps) {
+  return <PlayScreenContent {...props} />;
+}
+
+export function PlayScreenContent({ forcedMode }: PlayScreenProps = {}) {
   const insets = useSafeAreaInsets();
-  const [mode, setMode] = useState<PlayMode>('challenge');
+  const [mode, setMode] = useState<PlayMode>(forcedMode ?? 'challenge');
+
+  useEffect(() => {
+    if (forcedMode) {
+      setMode(forcedMode);
+    }
+  }, [forcedMode]);
 
   const handleModeChange = (newMode: PlayMode) => {
     setMode(newMode);
@@ -236,7 +250,7 @@ function ChallengeMode() {
           const currentStreak = await getStreakByWorkspace(db, workspaceId);
           const yesterday = new Date();
           yesterday.setDate(yesterday.getDate() - 1);
-          const yesterdayStr = yesterday.toISOString().split('T')[0];
+          const yesterdayStr = formatLocalDate(yesterday);
           const lastDone = currentStreak?.last_completed;
           const isConsecutive = lastDone === yesterdayStr;
           const alreadyCountedToday = lastDone === today;
@@ -260,9 +274,9 @@ function ChallengeMode() {
               if (remindersEnabled === 'true') {
                 const now = new Date();
                 if (now.getHours() < 8) {
-                  await scheduleDailyReminders(true);
+                  await scheduleDailyReminders({ workspaceId, skipToday: true });
                 } else {
-                  await scheduleDailyReminders(false);
+                  await scheduleDailyReminders({ workspaceId, skipToday: false });
                 }
               }
             } catch { /* non-fatal */ }

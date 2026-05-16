@@ -10,6 +10,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWorkspace } from '../../../hooks/WorkspaceContext';
 import { getStatsForWorkspace, StatsSnapshot, DailyAccuracy } from '../../../lib/db/queries/stats';
+import { formatLocalDate, parseLocalDateString } from '../../../lib/utils/dateUtils';
 import { colors, spacing, radii, typography } from '../../../constants/theme';
 import Icon from '../../../components/ui/Icon';
 
@@ -17,24 +18,10 @@ import Icon from '../../../components/ui/Icon';
 
 const ACCENT = colors.accentPurple; // #d1a0d7
 
-/** Returns N days as YYYY-MM-DD strings, ending on the current week's Saturday */
-const getCalendarDays = (n: number): string[] => {
-  const days: string[] = [];
-  const today = new Date();
-  const offsetToEndOfWeek = 6 - today.getDay();
-  
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(today.getDate() + offsetToEndOfWeek - i);
-    days.push(d.toISOString().split('T')[0]);
-  }
-  return days;
-};
-
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 function getDayLabel(dateStr: string): string {
-  return DAY_LABELS[new Date(dateStr).getDay()];
+  return DAY_LABELS[parseLocalDateString(dateStr).getDay()];
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -112,36 +99,99 @@ const statCardStyles = StyleSheet.create({
   },
 });
 
-/** 35-day calendar strip highlighting completed challenge days */
-function CalendarStrip({ completedDates }: { completedDates: string[] }) {
-  const days = getCalendarDays(35);
-  const completedSet = new Set(completedDates);
-  const today = new Date().toISOString().split('T')[0];
+type CalendarCell = {
+  date: string;
+  day: number;
+  inCurrentMonth: boolean;
+};
 
-  // Split into rows of 7
-  const weeks: string[][] = [];
-  for (let i = 0; i < days.length; i += 7) {
-    weeks.push(days.slice(i, i + 7));
+function buildMonthCells(monthDate: Date): CalendarCell[] {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+
+  const firstDay = new Date(year, month, 1);
+  const firstWeekday = firstDay.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+  const cells: CalendarCell[] = [];
+
+  for (let i = firstWeekday - 1; i >= 0; i--) {
+    const day = daysInPrevMonth - i;
+    const date = new Date(year, month - 1, day);
+    cells.push({ date: formatLocalDate(date), day, inCurrentMonth: false });
   }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month, day);
+    cells.push({ date: formatLocalDate(date), day, inCurrentMonth: true });
+  }
+
+  let nextMonthDay = 1;
+  while (cells.length % 7 !== 0) {
+    const date = new Date(year, month + 1, nextMonthDay);
+    cells.push({ date: formatLocalDate(date), day: nextMonthDay, inCurrentMonth: false });
+    nextMonthDay += 1;
+  }
+
+  return cells;
+}
+
+/** Month-view calendar highlighting completed challenge days */
+function MonthCalendar({ completedDates }: { completedDates: string[] }) {
+  const [monthCursor, setMonthCursor] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const completedSet = new Set(completedDates);
+  const today = formatLocalDate(new Date());
+
+  const cells = buildMonthCells(monthCursor);
+  const rows: CalendarCell[][] = [];
+  for (let i = 0; i < cells.length; i += 7) {
+    rows.push(cells.slice(i, i + 7));
+  }
+
+  const monthLabel = monthCursor.toLocaleDateString(undefined, {
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const shiftMonth = (delta: number) => {
+    setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
+  };
 
   return (
     <View style={calStyles.container}>
+      <View style={calStyles.navRow}>
+        <TouchableOpacity style={calStyles.navBtn} onPress={() => shiftMonth(-1)} activeOpacity={0.7}>
+          <View style={calStyles.leftArrow}>
+            <Icon name="arrow-right" size={14} color={colors.textPrimary} strokeWidth={2.2} />
+          </View>
+        </TouchableOpacity>
+        <Text style={calStyles.monthLabel}>{monthLabel}</Text>
+        <TouchableOpacity style={calStyles.navBtn} onPress={() => shiftMonth(1)} activeOpacity={0.7}>
+          <Icon name="arrow-right" size={14} color={colors.textPrimary} strokeWidth={2.2} />
+        </TouchableOpacity>
+      </View>
+
       {/* Day header */}
       <View style={calStyles.row}>
-        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+        {DAY_LABELS.map((d, i) => (
           <Text key={i} style={calStyles.dayHeader}>{d}</Text>
         ))}
       </View>
-      {weeks.map((week, wi) => (
+      {rows.map((week, wi) => (
         <View key={wi} style={calStyles.row}>
-          {week.map((date) => {
-            const done = completedSet.has(date);
-            const isToday = date === today;
+          {week.map((cell) => {
+            const done = completedSet.has(cell.date);
+            const isToday = cell.date === today;
             return (
               <View
-                key={date}
+                key={cell.date}
                 style={[
                   calStyles.day,
+                  !cell.inCurrentMonth && calStyles.dayOutsideMonth,
                   done && calStyles.dayDone,
                   isToday && !done && calStyles.dayToday,
                 ]}
@@ -149,11 +199,12 @@ function CalendarStrip({ completedDates }: { completedDates: string[] }) {
                 <Text
                   style={[
                     calStyles.dayText,
+                    !cell.inCurrentMonth && calStyles.dayTextOutsideMonth,
                     done && calStyles.dayTextDone,
                     isToday && !done && calStyles.dayTextToday,
                   ]}
                 >
-                  {new Date(date).getDate()}
+                  {cell.day}
                 </Text>
               </View>
             );
@@ -166,7 +217,30 @@ function CalendarStrip({ completedDates }: { completedDates: string[] }) {
 
 const calStyles = StyleSheet.create({
   container: {
-    gap: 4,
+    gap: 6,
+  },
+  navRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  navBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bgButtonSub,
+  },
+  monthLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    textTransform: 'capitalize',
+  },
+  leftArrow: {
+    transform: [{ rotate: '180deg' }],
   },
   row: {
     flexDirection: 'row',
@@ -185,10 +259,13 @@ const calStyles = StyleSheet.create({
   day: {
     width: 34,
     height: 34,
-    borderRadius: 17,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
+  },
+  dayOutsideMonth: {
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
   },
   dayDone: {
     backgroundColor: ACCENT,
@@ -201,6 +278,9 @@ const calStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '400',
     color: colors.textSecondary,
+  },
+  dayTextOutsideMonth: {
+    color: '#6a6a70',
   },
   dayTextDone: {
     color: '#1a1a1a',
@@ -399,10 +479,12 @@ export default function StatsScreen() {
       <View style={styles.section}>
         <SectionHeader icon="calendar" title="Daily Challenge Calendar" />
         <View style={styles.card}>
-          <CalendarStrip completedDates={stats.completedDates} />
+          <MonthCalendar completedDates={stats.completedDates} />
           <View style={styles.calLegend}>
             <View style={[styles.calDot, { backgroundColor: ACCENT }]} />
             <Text style={styles.calLegendText}>Challenge completed</Text>
+            <View style={[styles.calDot, { backgroundColor: 'rgba(255,255,255,0.07)', marginLeft: spacing.m }]} />
+            <Text style={styles.calLegendText}>Outside month</Text>
           </View>
         </View>
       </View>
