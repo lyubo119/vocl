@@ -8,9 +8,9 @@ import {
   TextInput,
   Modal,
   Pressable,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
+  Animated,
+  PanResponder,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as SQLite from 'expo-sqlite';
@@ -21,12 +21,95 @@ import { exportVocabToCsv } from '../../../../lib/csv/csvExport';
 import { pickAndParseCsv } from '../../../../lib/csv/csvImport';
 import { useWorkspace } from '../../../../hooks/WorkspaceContext';
 import { useToast } from '../../../../components/overlays/ToastContext';
-import { colors, spacing, radii, typography, componentStyles } from '../../../../constants/theme';
+import { colors, spacing, radii, typography } from '../../../../constants/theme';
 import Icon from '../../../../components/ui/Icon';
 
 type Props = {
   onAddWord?: () => void;
 };
+
+const SWIPE_ACTION_WIDTH = 84;
+
+type SwipeToDeleteRowProps = {
+  children: React.ReactNode;
+  onDelete: () => void;
+};
+
+function SwipeToDeleteRow({ children, onDelete }: SwipeToDeleteRowProps) {
+  const translateX = React.useRef(new Animated.Value(0)).current;
+  const startXRef = React.useRef(0);
+  const openRef = React.useRef(false);
+  const deleteActionOpacity = translateX.interpolate({
+    inputRange: [-SWIPE_ACTION_WIDTH, -20, 0],
+    outputRange: [1, 0.15, 0],
+    extrapolate: 'clamp',
+  });
+  const deleteActionScale = translateX.interpolate({
+    inputRange: [-SWIPE_ACTION_WIDTH, 0],
+    outputRange: [1, 0.88],
+    extrapolate: 'clamp',
+  });
+
+  const setOpen = (open: boolean) => {
+    openRef.current = open;
+    Animated.spring(translateX, {
+      toValue: open ? -SWIPE_ACTION_WIDTH : 0,
+      useNativeDriver: true,
+      tension: 160,
+      friction: 18,
+    }).start();
+  };
+
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dx) > Math.abs(gestureState.dy) &&
+        Math.abs(gestureState.dx) > 8,
+      onPanResponderGrant: () => {
+        startXRef.current = openRef.current ? -SWIPE_ACTION_WIDTH : 0;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const rawX = startXRef.current + gestureState.dx;
+        const clampedX = Math.max(-SWIPE_ACTION_WIDTH, Math.min(0, rawX));
+        translateX.setValue(clampedX);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const finalX = startXRef.current + gestureState.dx;
+        const shouldOpen = finalX < -SWIPE_ACTION_WIDTH * 0.45 || gestureState.vx < -0.45;
+        setOpen(shouldOpen);
+      },
+      onPanResponderTerminate: () => setOpen(false),
+    })
+  ).current;
+
+  return (
+    <View style={styles.swipeRow}>
+      <Animated.View
+        style={[
+          styles.deleteActionContainer,
+          {
+            opacity: deleteActionOpacity,
+            transform: [{ scale: deleteActionScale }],
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.deleteActionButton}
+          onPress={onDelete}
+          activeOpacity={0.8}
+        >
+          <Icon name="trash-minimal" size={16} color="#ffffff" strokeWidth={1.7} />
+        </TouchableOpacity>
+      </Animated.View>
+      <Animated.View
+        style={[styles.swipeContent, { transform: [{ translateX }] }]}
+        {...panResponder.panHandlers}
+      >
+        {children}
+      </Animated.View>
+    </View>
+  );
+}
 
 export default function VocabListScreen({ onAddWord }: Props) {
   const { activeWorkspace } = useWorkspace();
@@ -145,6 +228,17 @@ export default function VocabListScreen({ onAddWord }: Props) {
     }
   };
 
+  const handleDeleteVocab = async (item: any) => {
+    if (!db) return;
+    try {
+      await deleteVocabItem(db, item.id);
+      setVocabItems(prev => prev.filter(v => v.id !== item.id));
+      showToast('Deleted', `"${item.word}" removed from the list.`, 'success');
+    } catch (err) {
+      showToast('Error', err instanceof Error ? err.message : 'Failed to delete word.', 'error');
+    }
+  };
+
   const filteredVocab = vocabItems
     .filter(v => {
       const q = searchQuery.toLowerCase();
@@ -235,25 +329,27 @@ export default function VocabListScreen({ onAddWord }: Props) {
           contentContainerStyle={{ paddingHorizontal: spacing.l, paddingBottom: 20 }}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
-            <TouchableOpacity 
-              style={[styles.vocabCard, item.is_deactivated && styles.vocabCardDeactivated]}
-              onLongPress={() => toggleDeactivate(item)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.vocabMain}>
-                <Text style={[styles.vocabWord, item.is_deactivated && styles.textDeactivated]}>{item.word}</Text>
-                <Text style={[styles.vocabTranslation, item.is_deactivated && styles.textDeactivated]}>{item.translation}</Text>
-              </View>
-              {item.notes ? <Text style={[styles.vocabNotes, item.is_deactivated && styles.textDeactivated]}>{item.notes}</Text> : null}
-              <View style={styles.vocabDivider} />
-              <View style={styles.vocabStats}>
-                <Text style={[styles.vocabStatLabel, item.is_deactivated && styles.textDeactivated]}>Weight: <Text style={styles.vocabStatValue}>{item.weight.toFixed(2)}</Text></Text>
-                <Text style={[styles.vocabStatLabel, item.is_deactivated && styles.textDeactivated]}>Streak: <Text style={styles.vocabStatValue}>{item.correct_streak}</Text></Text>
-                <Text style={[styles.vocabStatLabel, item.is_deactivated && styles.textDeactivated]}>Accuracy: <Text style={[styles.vocabStatValue, !item.is_deactivated && { color: getAccuracyColor(item) }]}>
-                  {item.total_attempts > 0 ? Math.round((item.total_correct / item.total_attempts) * 100) + '%' : '—'}
-                </Text></Text>
-              </View>
-            </TouchableOpacity>
+            <SwipeToDeleteRow onDelete={() => handleDeleteVocab(item)}>
+              <TouchableOpacity 
+                style={[styles.vocabCard, item.is_deactivated && styles.vocabCardDeactivated]}
+                onLongPress={() => toggleDeactivate(item)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.vocabMain}>
+                  <Text style={[styles.vocabWord, item.is_deactivated && styles.textDeactivated]}>{item.word}</Text>
+                  <Text style={[styles.vocabTranslation, item.is_deactivated && styles.textDeactivated]}>{item.translation}</Text>
+                </View>
+                {item.notes ? <Text style={[styles.vocabNotes, item.is_deactivated && styles.textDeactivated]}>{item.notes}</Text> : null}
+                <View style={styles.vocabDivider} />
+                <View style={styles.vocabStats}>
+                  <Text style={[styles.vocabStatLabel, item.is_deactivated && styles.textDeactivated]}>Weight: <Text style={styles.vocabStatValue}>{item.weight.toFixed(2)}</Text></Text>
+                  <Text style={[styles.vocabStatLabel, item.is_deactivated && styles.textDeactivated]}>Streak: <Text style={styles.vocabStatValue}>{item.correct_streak}</Text></Text>
+                  <Text style={[styles.vocabStatLabel, item.is_deactivated && styles.textDeactivated]}>Accuracy: <Text style={[styles.vocabStatValue, !item.is_deactivated && { color: getAccuracyColor(item) }]}>
+                    {item.total_attempts > 0 ? Math.round((item.total_correct / item.total_attempts) * 100) + '%' : '—'}
+                  </Text></Text>
+                </View>
+              </TouchableOpacity>
+            </SwipeToDeleteRow>
           )}
         />
       )}
@@ -328,7 +424,32 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgCard,
     borderRadius: radii.lg,
     padding: spacing.m,
+  },
+  swipeRow: {
     marginBottom: spacing.s,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  swipeContent: {
+    zIndex: 2,
+  },
+  deleteActionContainer: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: SWIPE_ACTION_WIDTH,
+    zIndex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteActionButton: {
+    width: SWIPE_ACTION_WIDTH - spacing.s,
+    height: '100%',
+    borderRadius: radii.lg,
+    backgroundColor: '#c53b3b',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   vocabMain: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   vocabWord: { ...typography.h3, flex: 1 },
@@ -338,7 +459,7 @@ const styles = StyleSheet.create({
   vocabStats: { flexDirection: 'row', justifyContent: 'space-between' },
   vocabStatLabel: { ...typography.smallCaps, fontSize: 10 },
   vocabStatValue: { color: '#ffffff', fontWeight: '500' },
-  vocabCardDeactivated: { backgroundColor: '#2a2a2a', opacity: 0.6 },
+  vocabCardDeactivated: { backgroundColor: '#2a2a2a' },
   textDeactivated: { color: colors.textSecondary },
 
   searchContainer: {

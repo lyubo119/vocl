@@ -29,7 +29,9 @@ type IconName =
   | 'check-square'
   | 'x-circle'
   | 'info'
-  | 'check-circle';
+  | 'check-circle'
+  | 'trash'
+  | 'trash-minimal';
 
 type IconProps = {
   name: IconName;
@@ -71,6 +73,8 @@ const iconPaths: Record<IconName, string> = {
   'x-circle': 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM15 9l-6 6M9 9l6 6',
   info: 'M12 16v-4M12 8h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z',
   'check-circle': 'M9 12l2 2 4-4M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z',
+  trash: 'M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m-9 0l1 14a1 1 0 0 0 1 .93h6a1 1 0 0 0 1-.93L17 6M10 11v6M14 11v6',
+  'trash-minimal': 'M9 4h6M5 7h14M9.5 10.5v6M14.5 10.5v6M8 7l1 12h6l1-12',
 };
 
 const Icon: React.FC<IconProps> = ({ name, size = 24, color = '#ffffff', strokeWidth = 1.8 }) => {

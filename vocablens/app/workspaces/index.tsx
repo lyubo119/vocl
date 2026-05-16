@@ -77,7 +77,7 @@ export default function WorkspacesScreen() {
   };
 
   const handleSelectWorkspace = (workspaceId: string) => {
-    setWorkspace(workspaceId);
+    void setWorkspace(workspaceId);
     router.push(`/workspaces/${workspaceId}`);
   };
 

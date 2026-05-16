@@ -10,6 +10,7 @@ import {
   Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useWorkspace } from '../../../hooks/WorkspaceContext';
 import { colors, spacing, radii, typography } from '../../../constants/theme';
 import Icon from '../../../components/ui/Icon';
@@ -17,7 +18,11 @@ import { initDatabase } from '../../../lib/db/schema';
 import { getSetting, setSetting, deleteSetting, SETTINGS_KEYS } from '../../../lib/db/queries/settings';
 import { getSessionByDate } from '../../../lib/db/queries/sessions';
 import { getTodayDateString } from '../../../lib/utils/dateUtils';
-import { requestNotificationPermissions, scheduleDailyReminders, cancelDailyReminders } from '../../../lib/notifications';
+import {
+  requestNotificationPermissions,
+  scheduleDailyReminders,
+  cancelDailyReminders,
+} from '../../../lib/notifications';
 import { useToast } from '../../../components/overlays/ToastContext';
 import ConfirmDialog from '../../../components/overlays/ConfirmDialog';
 
@@ -28,6 +33,7 @@ type Props = {
 export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Props) {
   const { activeWorkspace, workspaces, editWorkspace, removeWorkspace, setWorkspace } = useWorkspace();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   const [editMode, setEditMode] = useState(false);
   const [name, setName] = useState(activeWorkspace?.name ?? '');
@@ -96,6 +102,11 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
 
   const handleToggleReminders = async (value: boolean) => {
     try {
+      if (!activeWorkspace?.id) {
+        showToast('Error', 'No active workspace selected.', 'error');
+        return;
+      }
+
       if (value) {
         const granted = await requestNotificationPermissions();
         if (!granted) {
@@ -104,7 +115,7 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
         }
 
         const skipToday = await shouldSkipTodayReminder();
-        await scheduleDailyReminders({ workspaceId: activeWorkspace?.id, skipToday });
+        await scheduleDailyReminders({ workspaceId: activeWorkspace.id, skipToday });
       } else {
         await cancelDailyReminders();
       }
@@ -114,7 +125,7 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
       setDailyReminders(value);
       showToast('Saved', value ? 'Daily reminders enabled' : 'Daily reminders disabled', 'success');
     } catch (err) {
-      showToast('Error', 'Failed to update reminder settings', 'error');
+      showToast('Error', err instanceof Error ? err.message : 'Failed to update reminder settings', 'error');
     }
   };
 
@@ -165,6 +176,15 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
     } finally {
       setDeleting(false);
     }
+  };
+
+  const handleSwitchWorkspace = (workspaceId: string) => {
+    if (!activeWorkspace || workspaceId === activeWorkspace.id) return;
+    void setWorkspace(workspaceId);
+    router.replace({
+      pathname: '/workspaces/[id]',
+      params: { id: workspaceId, targetTab: 'settings' },
+    });
   };
 
   return (
@@ -259,7 +279,7 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
           <TouchableOpacity
             key={ws.id}
             style={[styles.workspaceRow, ws.id === activeWorkspace.id && styles.workspaceRowActive]}
-            onPress={() => setWorkspace(ws.id)}
+            onPress={() => handleSwitchWorkspace(ws.id)}
             activeOpacity={0.7}
           >
             <View style={styles.workspaceRowInfo}>

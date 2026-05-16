@@ -1,7 +1,9 @@
 import * as SQLite from 'expo-sqlite';
 
-export const initDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
-  const db = SQLite.openDatabaseSync('vocablens.db');
+let dbInstance: SQLite.SQLiteDatabase | null = null;
+let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
+
+const runMigrations = async (db: SQLite.SQLiteDatabase): Promise<void> => {
 
   // Create workspaces table
   await db.execAsync(
@@ -86,8 +88,26 @@ export const initDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
       value TEXT NOT NULL
     );`
   );
+};
 
-  return db;
+export const initDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
+  if (dbInstance) return dbInstance;
+  if (initPromise) return initPromise;
+
+  const db = SQLite.openDatabaseSync('vocablens.db');
+  initPromise = (async () => {
+    await runMigrations(db);
+    dbInstance = db;
+    return db;
+  })();
+
+  try {
+    return await initPromise;
+  } catch (error) {
+    initPromise = null;
+    dbInstance = null;
+    throw error;
+  }
 };
 
 export type Workspace = {

@@ -10,6 +10,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Animated,
+  PanResponder,
+  Easing,
 } from 'react-native';
 import { createVocabItem } from '../../lib/db/queries/vocab';
 import { getNewVocabItem } from '../../lib/scheduler/spacedRepetition';
@@ -35,6 +38,8 @@ export default function AddVocabModal({ visible, onClose, workspaceId }: Props) 
   const [newNotes, setNewNotes] = useState('');
   const [adding, setAdding] = useState(false);
   const [translating, setTranslating] = useState(false);
+  const sheetTranslateY = useRef(new Animated.Value(0)).current;
+  const sheetHeightRef = useRef(0);
 
   // True once the user has manually edited the translation field.
   // We never auto-overwrite after that.
@@ -106,6 +111,7 @@ export default function AddVocabModal({ visible, onClose, workspaceId }: Props) 
       const t = setTimeout(reset, 300);
       return () => clearTimeout(t);
     }
+    sheetTranslateY.setValue(0);
   }, [visible]);
 
   // ── Add word ─────────────────────────────────────────────────────────────────
@@ -141,6 +147,54 @@ export default function AddVocabModal({ visible, onClose, workspaceId }: Props) 
     onClose();
   };
 
+  const closeBySwipe = (currentY: number) => {
+    const clampedY = Math.max(0, currentY);
+    const targetY = Math.max(sheetHeightRef.current + 48, 520);
+    const remaining = Math.max(0, targetY - clampedY);
+    const duration = Math.min(180, Math.max(90, remaining * 0.35));
+
+    sheetTranslateY.stopAnimation();
+    sheetTranslateY.setValue(clampedY);
+    Animated.timing(sheetTranslateY, {
+      toValue: targetY,
+      duration,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+      isInteraction: false,
+    }).start(() => {
+      onClose();
+    });
+  };
+
+  const snapBack = () => {
+    Animated.spring(sheetTranslateY, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 160,
+      friction: 18,
+    }).start();
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        gestureState.dy > 6 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+      onPanResponderMove: (_, gestureState) => {
+        sheetTranslateY.setValue(Math.max(0, gestureState.dy));
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 90 || gestureState.vy > 1) {
+          closeBySwipe(gestureState.dy);
+          return;
+        }
+        snapBack();
+      },
+      onPanResponderTerminate: () => {
+        snapBack();
+      },
+    })
+  ).current;
+
   // ── Derived UI state ─────────────────────────────────────────────────────────
   const busy = adding || translating;
   // source_lang = unknown (learned), target_lang = known (native)
@@ -151,7 +205,7 @@ export default function AddVocabModal({ visible, onClose, workspaceId }: Props) 
 
   return (
     <Modal
-      animationType="slide"
+      animationType="none"
       transparent
       visible={visible}
       onRequestClose={handleClose}
@@ -161,9 +215,21 @@ export default function AddVocabModal({ visible, onClose, workspaceId }: Props) 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboard}
         >
-          <Pressable style={styles.sheet} onPress={e => e.stopPropagation()}>
-            <View style={styles.handle} />
-            <Text style={styles.title}>Add Word</Text>
+          <Animated.View
+            style={{ transform: [{ translateY: sheetTranslateY }] }}
+            {...panResponder.panHandlers}
+          >
+            <Pressable
+              style={styles.sheet}
+              onPress={e => e.stopPropagation()}
+              onLayout={(event) => {
+                sheetHeightRef.current = event.nativeEvent.layout.height;
+              }}
+            >
+              <Pressable style={styles.handleTouch} onPress={e => e.stopPropagation()}>
+                <View style={styles.handle} />
+              </Pressable>
+              <Text style={styles.title}>Add Word</Text>
             <Text style={styles.subtitle}>
               {langPairLabel
                 ? `Type a word in ${activeWorkspace!.source_lang.toUpperCase()} — translation is fetched automatically.`
@@ -264,7 +330,8 @@ export default function AddVocabModal({ visible, onClose, workspaceId }: Props) 
             >
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
-          </Pressable>
+            </Pressable>
+          </Animated.View>
         </KeyboardAvoidingView>
       </Pressable>
     </Modal>
@@ -285,6 +352,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.l,
     paddingBottom: spacing.xl,
     paddingTop: spacing.m,
+  },
+  handleTouch: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
   },
   handle: {
     width: 36, height: 4,

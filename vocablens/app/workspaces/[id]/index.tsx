@@ -21,7 +21,7 @@ export default function WorkspaceLayout() {
 
   useEffect(() => {
     if (id && activeWorkspace?.id !== id) {
-      setWorkspace(id);
+      void setWorkspace(id);
     }
   }, [activeWorkspace?.id, id, setWorkspace]);
 

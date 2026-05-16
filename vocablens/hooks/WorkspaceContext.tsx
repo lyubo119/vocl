@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import * as SQLite from 'expo-sqlite';
 import { initDatabase } from '../lib/db/schema';
 import { getAllWorkspaces, createWorkspace, deleteWorkspace, updateWorkspace } from '../lib/db/queries/workspaces';
@@ -13,7 +13,7 @@ type WorkspaceContextType = {
   lastWorkspaceId: string | null;
   db: SQLite.SQLiteDatabase | null;
   createNewWorkspace: (name: string, sourceLang: string, targetLang: string) => Promise<Workspace>;
-  setWorkspace: (workspaceId: string) => void;
+  setWorkspace: (workspaceId: string) => Promise<void>;
   removeWorkspace: (workspaceId: string) => Promise<void>;
   editWorkspace: (workspaceId: string, updates: Partial<Omit<Workspace, 'id' | 'created_at'>>) => Promise<void>;
 };
@@ -75,17 +75,21 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
     return newWorkspace;
   };
 
-  const setWorkspace = (workspaceId: string) => {
+  const setWorkspace = useCallback(async (workspaceId: string) => {
     const workspace = workspaces.find(w => w.id === workspaceId);
     if (workspace) {
       setActiveWorkspace(workspace);
+      setLastWorkspaceId(workspaceId);
       // Persist as last workspace
       if (db) {
-        setSetting(db, SETTINGS_KEYS.LAST_WORKSPACE_ID, workspaceId);
-        setLastWorkspaceId(workspaceId);
+        try {
+          await setSetting(db, SETTINGS_KEYS.LAST_WORKSPACE_ID, workspaceId);
+        } catch {
+          // Non-fatal: active workspace is still updated in memory.
+        }
       }
     }
-  };
+  }, [db, workspaces]);
 
   const removeWorkspace = async (workspaceId: string) => {
     if (!db) throw new Error('Database not initialized');

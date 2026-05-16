@@ -122,3 +122,31 @@ Call Stack
   ExpoRoot (node_modules\expo-router\build\ExpoRoot.js)
   App (node_modules\expo-router\build\qualified-entry.js)
   WithDevTools (node_modules\expo\src\launch\withDevTools.tsx)
+
+3.
+- when deleting words from the list, the red delete area should only appear when swiping the word element to the left, not when tapping and holding it + find a more minimalistic trash icon,
+currently the deactivated words have the red area with the trash icon which shouldnt be there
+- the overlay window that opens when clicking on "+" for adding a new vocab should also be closed by swiping it down
+- cant change the workspaces probably beacuse of call stack issues (dont influence the tunnel of expo)
+ ERROR  [Error: Uncaught (in promise, id: 3) Error: Call to function 'NativeDatabase.prepareAsync' has been rejected.
+→ Caused by: java.lang.NullPointerException: java.lang.NullPointerException] 
+
+Call Stack
+  construct (<native>)
+  apply (<native>)
+  _construct (node_modules\@babel\runtime\helpers\construct.js)
+  Wrapper (node_modules\@babel\runtime\helpers\wrapNativeSuper.js)
+  construct (<native>)
+  _callSuper (node_modules\@babel\runtime\helpers\callSuper.js)
+  constructor (node_modules\expo-modules-core\src\errors\CodedError.ts)
+ ERROR  [Error: Uncaught (in promise, id: 4) Error: Call to function 'NativeDatabase.prepareAsync' has been rejected.
+→ Caused by: java.lang.NullPointerException: java.lang.NullPointerException] 
+
+Call Stack
+  construct (<native>)
+  apply (<native>)
+  _construct (node_modules\@babel\runtime\helpers\construct.js)
+  Wrapper (node_modules\@babel\runtime\helpers\wrapNativeSuper.js)
+  construct (<native>)
+  _callSuper (node_modules\@babel\runtime\helpers\callSuper.js)
+  constructor (node_modules\expo-modules-core\src\errors\CodedError.ts)

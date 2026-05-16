@@ -21,9 +21,25 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#020202"
       },
+      "permissions": [
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED"
+      ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "softwareKeyboardLayoutMode": "pan"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "daily-reminders"
+        }
+      ]
+    ],
+    "androidNavigationBar": {
+      "backgroundColor": "#020205",
+      "barStyle": "light-content"
     },
     "web": {
       "favicon": "./assets/favicon.png"
