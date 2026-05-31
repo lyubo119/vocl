@@ -1,3 +1,5 @@
+import { normalizeTranslationLanguageCode } from './languages';
+
 /**
  * MyMemory Translation Service
  * https://mymemory.translated.net/doc/spec.php
@@ -22,8 +24,8 @@ export interface TranslationResult {
  * Translate `text` from `sourceLang` to `targetLang` via MyMemory.
  *
  * @param text       Word/phrase to translate
- * @param sourceLang ISO 639-1 source language (e.g. "de") — the unknown language
- * @param targetLang ISO 639-1 target language (e.g. "en") — the known language
+ * @param sourceLang MyMemory source language code/name (e.g. "de-DE" or "de") — the unknown language
+ * @param targetLang MyMemory target language code/name (e.g. "en-GB" or "en") — the known language
  * @param email      Optional email for 50k chars/day quota (instead of 5k)
  */
 export async function translateWord(
@@ -32,11 +34,14 @@ export async function translateWord(
   targetLang: string,
   email?: string | null
 ): Promise<TranslationResult> {
+  const normalizedSourceLang = normalizeTranslationLanguageCode(sourceLang);
+  const normalizedTargetLang = normalizeTranslationLanguageCode(targetLang);
+
   // Build the URL manually to keep the pipe literal in `langpair`
   let url =
     `https://api.mymemory.translated.net/get` +
     `?q=${encodeURIComponent(text)}` +
-    `&langpair=${encodeURIComponent(sourceLang)}|${encodeURIComponent(targetLang)}`;
+    `&langpair=${encodeURIComponent(normalizedSourceLang)}|${encodeURIComponent(normalizedTargetLang)}`;
 
   if (email && email.trim()) {
     url += `&de=${encodeURIComponent(email.trim())}`;

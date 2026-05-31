@@ -24,7 +24,10 @@ import {
 import { getStreakByWorkspace, createOrUpdateStreak } from '../../../lib/db/queries/streaks';
 import { getSetting, SETTINGS_KEYS } from '../../../lib/db/queries/settings';
 import { scheduleDailyReminders } from '../../../lib/notifications';
-import { formatLocalDate, getTodayDateString } from '../../../lib/utils/dateUtils';
+import {
+  formatLocalDate,
+  getTodayDateString,
+} from '../../../lib/utils/dateUtils';
 import { colors, spacing, radii, typography } from '../../../constants/theme';
 import Icon from '../../../components/ui/Icon';
 
@@ -37,12 +40,19 @@ type FreePhase = 'loading' | 'question' | 'result';
 type AnswerRecord = {
   word: string;
   translation: string;
+  notes?: string;
   userAnswer: string;
   correct: boolean;
 };
 
 type PlayScreenProps = {
   forcedMode?: PlayMode;
+};
+
+const limitNotes = (notes?: string | null): string | null => {
+  const trimmed = notes?.trim();
+  if (!trimmed) return null;
+  return trimmed.length > 100 ? `${trimmed.slice(0, 100)}...` : trimmed;
 };
 
 // ── Main PlayScreen ───────────────────────────────────────────────────────────
@@ -124,6 +134,7 @@ function ChallengeMode() {
   const [lastCorrect, setLastCorrect] = useState<boolean | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
   const inputRef = useRef<TextInput>(null);
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -134,6 +145,12 @@ function ChallengeMode() {
     if (!db || !workspaceId) return;
     initChallenge();
   }, [db, workspaceId]);
+
+  useEffect(() => {
+    if (phase !== 'done_today') return;
+    const timer = setInterval(() => setCurrentTime(new Date()), 30000);
+    return () => clearInterval(timer);
+  }, [phase]);
 
   const initChallenge = async () => {
     if (!db || !workspaceId) return;
@@ -215,6 +232,7 @@ function ChallengeMode() {
     const record: AnswerRecord = {
       word: current.word,
       translation: current.translation,
+      notes: current.notes,
       userAnswer: trimmed,
       correct: isCorrect,
     };
@@ -320,16 +338,18 @@ function ChallengeMode() {
 
   // ── Done for today ─────────────────────────────────────────────────────────
   if (phase === 'done_today') {
-    // Compute time until midnight
-    const now = new Date();
-    const msUntilMidnight =
-      new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - now.getTime();
-    const hoursLeft = Math.floor(msUntilMidnight / (1000 * 60 * 60));
-    const minsLeft = Math.floor((msUntilMidnight % (1000 * 60 * 60)) / (1000 * 60));
+    const nextChallengeAt = new Date(
+      currentTime.getFullYear(),
+      currentTime.getMonth(),
+      currentTime.getDate() + 1
+    );
+    const msUntilNextChallenge = nextChallengeAt.getTime() - currentTime.getTime();
+    const hoursLeft = Math.floor(msUntilNextChallenge / (1000 * 60 * 60));
+    const minsLeft = Math.floor((msUntilNextChallenge % (1000 * 60 * 60)) / (1000 * 60));
     return (
       <View style={styles.doneTodayContainer}>
         <View style={styles.doneTodayBadge}>
-          <Text style={styles.doneTodayEmoji}>🏆</Text>
+          <Icon name="trophy" size={48} color="#ffffff" strokeWidth={1.8} />
         </View>
         <Text style={styles.doneTodayTitle}>Challenge Complete!</Text>
         <Text style={styles.doneTodaySubtitle}>
@@ -376,6 +396,7 @@ Come back in {hoursLeft}h {minsLeft}m for a new one.
 
   const current = vocabItems[currentIndex];
   const progress = (currentIndex + (phase === 'result' ? 1 : 0)) / vocabItems.length;
+  const currentNotes = phase === 'result' && lastCorrect ? limitNotes(current.notes) : null;
 
   return (
     <KeyboardAvoidingView
@@ -400,9 +421,12 @@ Come back in {hoursLeft}h {minsLeft}m for a new one.
           {phase === 'result' && (
             <View style={[styles.feedbackStrip, lastCorrect ? styles.feedbackCorrect : styles.feedbackWrong]}>
               <Icon name={lastCorrect ? 'check' : 'x'} size={18} color={lastCorrect ? colors.success : colors.error} />
-              <Text style={[styles.feedbackText, { color: lastCorrect ? colors.success : colors.error }]}>
-                {lastCorrect ? 'Correct!' : `Answer: ${current.translation}`}
-              </Text>
+              <View style={styles.feedbackContent}>
+                <Text style={[styles.feedbackText, { color: lastCorrect ? colors.success : colors.error }]}>
+                  {lastCorrect ? `Correct: ${current.translation}` : `Answer: ${current.translation}`}
+                </Text>
+                {currentNotes && <Text style={styles.feedbackNotes}>{currentNotes}</Text>}
+              </View>
             </View>
           )}
         </View>
@@ -581,9 +605,14 @@ function FreePlayMode() {
           {phase === 'result' && (
             <View style={[styles.feedbackStrip, lastCorrect ? styles.feedbackCorrect : styles.feedbackWrong]}>
               <Icon name={lastCorrect ? 'check' : 'x'} size={18} color={lastCorrect ? colors.success : colors.error} />
-              <Text style={[styles.feedbackText, { color: lastCorrect ? colors.success : colors.error }]}>
-                {lastCorrect ? 'Correct!' : `Answer: ${current?.translation}`}
-              </Text>
+              <View style={styles.feedbackContent}>
+                <Text style={[styles.feedbackText, { color: lastCorrect ? colors.success : colors.error }]}>
+                  {lastCorrect ? `Correct: ${current?.translation}` : `Answer: ${current?.translation}`}
+                </Text>
+                {lastCorrect && limitNotes(current?.notes) && (
+                  <Text style={styles.feedbackNotes}>{limitNotes(current?.notes)}</Text>
+                )}
+              </View>
             </View>
           )}
         </View>
@@ -725,7 +754,16 @@ const styles = StyleSheet.create({
   },
   feedbackCorrect: { backgroundColor: 'rgba(112, 204, 129, 0.12)' },
   feedbackWrong: { backgroundColor: 'rgba(255, 107, 107, 0.12)' },
+  feedbackContent: {
+    flex: 1,
+  },
   feedbackText: { fontSize: 15, fontWeight: '500' },
+  feedbackNotes: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 3,
+    lineHeight: 18,
+  },
 
   // Input
   inputSection: { paddingHorizontal: spacing.l, paddingBottom: spacing.l },
@@ -814,9 +852,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.s,
-  },
-  doneTodayEmoji: {
-    fontSize: 48,
   },
   doneTodayTitle: {
     fontSize: 26,

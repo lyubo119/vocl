@@ -8,6 +8,8 @@ import {
   TextInput,
   Modal,
   Pressable,
+  KeyboardAvoidingView,
+  Platform,
   ActivityIndicator,
   Animated,
   PanResponder,
@@ -30,15 +32,26 @@ type Props = {
 
 const SWIPE_ACTION_WIDTH = 84;
 
-type SwipeToDeleteRowProps = {
+type SwipeActionsRowProps = {
   children: React.ReactNode;
   onDelete: () => void;
+  onEdit: () => void;
 };
 
-function SwipeToDeleteRow({ children, onDelete }: SwipeToDeleteRowProps) {
+function SwipeActionsRow({ children, onDelete, onEdit }: SwipeActionsRowProps) {
   const translateX = React.useRef(new Animated.Value(0)).current;
   const startXRef = React.useRef(0);
-  const openRef = React.useRef(false);
+  const openRef = React.useRef<-1 | 0 | 1>(0);
+  const editActionOpacity = translateX.interpolate({
+    inputRange: [0, 20, SWIPE_ACTION_WIDTH],
+    outputRange: [0, 0.15, 1],
+    extrapolate: 'clamp',
+  });
+  const editActionScale = translateX.interpolate({
+    inputRange: [0, SWIPE_ACTION_WIDTH],
+    outputRange: [0.88, 1],
+    extrapolate: 'clamp',
+  });
   const deleteActionOpacity = translateX.interpolate({
     inputRange: [-SWIPE_ACTION_WIDTH, -20, 0],
     outputRange: [1, 0.15, 0],
@@ -50,10 +63,10 @@ function SwipeToDeleteRow({ children, onDelete }: SwipeToDeleteRowProps) {
     extrapolate: 'clamp',
   });
 
-  const setOpen = (open: boolean) => {
-    openRef.current = open;
+  const setOpen = (direction: -1 | 0 | 1) => {
+    openRef.current = direction;
     Animated.spring(translateX, {
-      toValue: open ? -SWIPE_ACTION_WIDTH : 0,
+      toValue: direction * SWIPE_ACTION_WIDTH,
       useNativeDriver: true,
       tension: 160,
       friction: 18,
@@ -66,24 +79,48 @@ function SwipeToDeleteRow({ children, onDelete }: SwipeToDeleteRowProps) {
         Math.abs(gestureState.dx) > Math.abs(gestureState.dy) &&
         Math.abs(gestureState.dx) > 8,
       onPanResponderGrant: () => {
-        startXRef.current = openRef.current ? -SWIPE_ACTION_WIDTH : 0;
+        startXRef.current = openRef.current * SWIPE_ACTION_WIDTH;
       },
       onPanResponderMove: (_, gestureState) => {
         const rawX = startXRef.current + gestureState.dx;
-        const clampedX = Math.max(-SWIPE_ACTION_WIDTH, Math.min(0, rawX));
+        const clampedX = Math.max(-SWIPE_ACTION_WIDTH, Math.min(SWIPE_ACTION_WIDTH, rawX));
         translateX.setValue(clampedX);
       },
       onPanResponderRelease: (_, gestureState) => {
         const finalX = startXRef.current + gestureState.dx;
-        const shouldOpen = finalX < -SWIPE_ACTION_WIDTH * 0.45 || gestureState.vx < -0.45;
-        setOpen(shouldOpen);
+        if (finalX > SWIPE_ACTION_WIDTH * 0.45 || gestureState.vx > 0.45) {
+          setOpen(1);
+          return;
+        }
+        if (finalX < -SWIPE_ACTION_WIDTH * 0.45 || gestureState.vx < -0.45) {
+          setOpen(-1);
+          return;
+        }
+        setOpen(0);
       },
-      onPanResponderTerminate: () => setOpen(false),
+      onPanResponderTerminate: () => setOpen(0),
     })
   ).current;
 
   return (
     <View style={styles.swipeRow}>
+      <Animated.View
+        style={[
+          styles.editActionContainer,
+          {
+            opacity: editActionOpacity,
+            transform: [{ scale: editActionScale }],
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.editActionButton}
+          onPress={onEdit}
+          activeOpacity={0.8}
+        >
+          <Icon name="pencil" size={17} color="#ffffff" strokeWidth={1.9} />
+        </TouchableOpacity>
+      </Animated.View>
       <Animated.View
         style={[
           styles.deleteActionContainer,
@@ -124,6 +161,11 @@ export default function VocabListScreen({ onAddWord }: Props) {
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [editingItem, setEditingItem] = useState<any | null>(null);
+  const [editWord, setEditWord] = useState('');
+  const [editTranslation, setEditTranslation] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     const loadVocab = async () => {
@@ -239,6 +281,42 @@ export default function VocabListScreen({ onAddWord }: Props) {
     }
   };
 
+  const handleOpenEdit = (item: any) => {
+    setEditingItem(item);
+    setEditWord(item.word ?? '');
+    setEditTranslation(item.translation ?? '');
+    setEditNotes(item.notes ?? '');
+  };
+
+  const handleCloseEdit = () => {
+    if (editSaving) return;
+    setEditingItem(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!db || !editingItem) return;
+    if (!editWord.trim()) {
+      showToast('Error', 'Please enter a word', 'error');
+      return;
+    }
+
+    setEditSaving(true);
+    try {
+      const updated = await updateVocabItem(db, editingItem.id, {
+        word: editWord.trim(),
+        translation: editTranslation.trim(),
+        notes: editNotes.trim(),
+      });
+      setVocabItems(prev => prev.map(v => v.id === updated.id ? updated : v));
+      setEditingItem(null);
+      showToast('Saved', `"${updated.word}" updated`, 'success');
+    } catch (err) {
+      showToast('Error', err instanceof Error ? err.message : 'Failed to update word.', 'error');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const filteredVocab = vocabItems
     .filter(v => {
       const q = searchQuery.toLowerCase();
@@ -329,7 +407,10 @@ export default function VocabListScreen({ onAddWord }: Props) {
           contentContainerStyle={{ paddingHorizontal: spacing.l, paddingBottom: 20 }}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
-            <SwipeToDeleteRow onDelete={() => handleDeleteVocab(item)}>
+            <SwipeActionsRow
+              onDelete={() => handleDeleteVocab(item)}
+              onEdit={() => handleOpenEdit(item)}
+            >
               <TouchableOpacity 
                 style={[styles.vocabCard, item.is_deactivated && styles.vocabCardDeactivated]}
                 onLongPress={() => toggleDeactivate(item)}
@@ -349,10 +430,77 @@ export default function VocabListScreen({ onAddWord }: Props) {
                   </Text></Text>
                 </View>
               </TouchableOpacity>
-            </SwipeToDeleteRow>
+            </SwipeActionsRow>
           )}
         />
       )}
+
+      <Modal
+        transparent
+        visible={!!editingItem}
+        animationType="slide"
+        onRequestClose={handleCloseEdit}
+      >
+        <Pressable style={styles.editOverlay} onPress={handleCloseEdit}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.editKeyboard}
+          >
+            <Pressable style={styles.editSheet} onPress={e => e.stopPropagation()}>
+              <View style={styles.modalHandle} />
+              <Text style={styles.modalTitle}>Edit Word</Text>
+
+              <Text style={styles.modalLabel}>Word</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={editWord}
+                onChangeText={setEditWord}
+                placeholder="Word"
+                placeholderTextColor={colors.textCtaUnfocused}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
+              <Text style={styles.modalLabel}>Translation</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={editTranslation}
+                onChangeText={setEditTranslation}
+                placeholder="Translation"
+                placeholderTextColor={colors.textCtaUnfocused}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
+              <Text style={styles.modalLabel}>Notes</Text>
+              <TextInput
+                style={[styles.modalInput, styles.modalNotesInput]}
+                value={editNotes}
+                onChangeText={setEditNotes}
+                placeholder="Notes"
+                placeholderTextColor={colors.textCtaUnfocused}
+                multiline
+              />
+
+              <TouchableOpacity
+                style={[styles.saveEditBtn, editSaving && styles.btnDisabled]}
+                onPress={handleSaveEdit}
+                disabled={editSaving}
+                activeOpacity={0.7}
+              >
+                {editSaving
+                  ? <ActivityIndicator size="small" color="#000000" />
+                  : <Text style={styles.saveEditBtnText}>Save Changes</Text>
+                }
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.cancelEditBtn} onPress={handleCloseEdit} activeOpacity={0.7}>
+                <Text style={styles.cancelEditBtnText}>Cancel</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
 
       {/* 3-dot menu modal */}
       <Modal
@@ -433,6 +581,24 @@ const styles = StyleSheet.create({
   swipeContent: {
     zIndex: 2,
   },
+  editActionContainer: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: SWIPE_ACTION_WIDTH,
+    zIndex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editActionButton: {
+    width: SWIPE_ACTION_WIDTH - spacing.s,
+    height: '100%',
+    borderRadius: radii.lg,
+    backgroundColor: '#f0a020',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   deleteActionContainer: {
     position: 'absolute',
     right: 0,
@@ -481,6 +647,78 @@ const styles = StyleSheet.create({
   clearSearchBtn: {
     padding: spacing.xs,
   },
+  editOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+  },
+  editKeyboard: {
+    justifyContent: 'flex-end',
+  },
+  editSheet: {
+    backgroundColor: '#111111',
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    paddingHorizontal: spacing.l,
+    paddingBottom: spacing.xl,
+    paddingTop: spacing.m,
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: colors.divider,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: spacing.l,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: spacing.m,
+  },
+  modalLabel: {
+    ...typography.smallCaps,
+    marginBottom: spacing.xs,
+  },
+  modalInput: {
+    backgroundColor: colors.bgButtonSub,
+    borderRadius: radii.sm,
+    paddingVertical: 12,
+    paddingHorizontal: spacing.m,
+    fontSize: 16,
+    color: '#ffffff',
+    marginBottom: spacing.m,
+  },
+  modalNotesInput: {
+    minHeight: 84,
+    textAlignVertical: 'top',
+  },
+  saveEditBtn: {
+    backgroundColor: '#ffffff',
+    borderRadius: radii.md,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: spacing.s,
+  },
+  saveEditBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#000000',
+  },
+  cancelEditBtn: {
+    backgroundColor: colors.bgButtonSub,
+    borderRadius: radii.md,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: spacing.s,
+  },
+  cancelEditBtnText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#ffffff',
+  },
+  btnDisabled: { opacity: 0.5 },
 
   // Menu
   menuOverlay: {

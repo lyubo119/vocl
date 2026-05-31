@@ -26,8 +26,15 @@ type Phase = 'loading' | 'question' | 'result' | 'complete';
 type AnswerRecord = {
   word: string;
   translation: string;
+  notes?: string;
   userAnswer: string;
   correct: boolean;
+};
+
+const limitNotes = (notes?: string | null): string | null => {
+  const trimmed = notes?.trim();
+  if (!trimmed) return null;
+  return trimmed.length > 100 ? `${trimmed.slice(0, 100)}...` : trimmed;
 };
 
 export default function LearnScreen() {
@@ -113,6 +120,7 @@ export default function LearnScreen() {
     const record: AnswerRecord = {
       word: current.word,
       translation: current.translation,
+      notes: current.notes,
       userAnswer: trimmed,
       correct: isCorrect,
     };
@@ -215,6 +223,7 @@ export default function LearnScreen() {
   // ── QUESTION / RESULT ─────────────────────────────────────
   const current = vocabItems[currentIndex];
   const progress = (currentIndex + (phase === 'result' ? 1 : 0)) / vocabItems.length;
+  const currentNotes = phase === 'result' && lastCorrect ? limitNotes(current.notes) : null;
 
   return (
     <KeyboardAvoidingView
@@ -241,9 +250,12 @@ export default function LearnScreen() {
           {phase === 'result' && (
             <View style={[styles.feedbackStrip, lastCorrect ? styles.feedbackCorrect : styles.feedbackWrong]}>
               <Icon name={lastCorrect ? 'check' : 'x'} size={18} color={lastCorrect ? colors.success : colors.error} />
-              <Text style={[styles.feedbackText, { color: lastCorrect ? colors.success : colors.error }]}>
-                {lastCorrect ? 'Correct!' : `Answer: ${current.translation}`}
-              </Text>
+              <View style={styles.feedbackContent}>
+                <Text style={[styles.feedbackText, { color: lastCorrect ? colors.success : colors.error }]}>
+                  {lastCorrect ? `Correct: ${current.translation}` : `Answer: ${current.translation}`}
+                </Text>
+                {currentNotes && <Text style={styles.feedbackNotes}>{currentNotes}</Text>}
+              </View>
             </View>
           )}
         </View>
@@ -325,7 +337,14 @@ const styles = StyleSheet.create({
   },
   feedbackCorrect: { backgroundColor: 'rgba(112, 204, 129, 0.12)' },
   feedbackWrong: { backgroundColor: 'rgba(255, 107, 107, 0.12)' },
+  feedbackContent: { flex: 1 },
   feedbackText: { fontSize: 15, fontWeight: '500' },
+  feedbackNotes: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 3,
+    lineHeight: 18,
+  },
 
   // Input
   inputSection: { paddingHorizontal: spacing.l, paddingBottom: spacing.l },

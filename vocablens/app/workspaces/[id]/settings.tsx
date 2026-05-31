@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { useWorkspace } from '../../../hooks/WorkspaceContext';
 import { colors, spacing, radii, typography } from '../../../constants/theme';
 import Icon from '../../../components/ui/Icon';
+import LanguageSelect from '../../../components/ui/LanguageSelect';
 import { initDatabase } from '../../../lib/db/schema';
 import { getSetting, setSetting, deleteSetting, SETTINGS_KEYS } from '../../../lib/db/queries/settings';
 import { getSessionByDate } from '../../../lib/db/queries/sessions';
@@ -23,6 +24,7 @@ import {
   scheduleDailyReminders,
   cancelDailyReminders,
 } from '../../../lib/notifications';
+import { normalizeTranslationLanguageCode } from '../../../lib/translation/languages';
 import { useToast } from '../../../components/overlays/ToastContext';
 import ConfirmDialog from '../../../components/overlays/ConfirmDialog';
 
@@ -147,10 +149,12 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
     }
     setSaving(true);
     try {
+      const sourceCode = normalizeTranslationLanguageCode(sourceLang.trim());
+      const targetCode = normalizeTranslationLanguageCode(targetLang.trim());
       await editWorkspace(activeWorkspace.id, {
         name: name.trim(),
-        source_lang: sourceLang.trim(),
-        target_lang: targetLang.trim(),
+        source_lang: sourceCode,
+        target_lang: targetCode,
       });
       setEditMode(false);
       showToast('Saved', 'Workspace updated', 'success');
@@ -234,31 +238,18 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
               autoCapitalize="words"
             />
             <View style={styles.langRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.fieldLabel}>Source</Text>
-                <TextInput
-                  style={styles.input}
-                  value={sourceLang}
-                  onChangeText={setSourceLang}
-                  placeholder="en"
-                  placeholderTextColor={colors.textCtaUnfocused}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
+              <LanguageSelect
+                label="Source"
+                value={sourceLang}
+                onChange={setSourceLang}
+                includeAutodetect
+              />
               <Text style={styles.langArrowModal}>→</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.fieldLabel}>Target</Text>
-                <TextInput
-                  style={styles.input}
-                  value={targetLang}
-                  onChangeText={setTargetLang}
-                  placeholder="de"
-                  placeholderTextColor={colors.textCtaUnfocused}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
+              <LanguageSelect
+                label="Target"
+                value={targetLang}
+                onChange={setTargetLang}
+              />
             </View>
             <View style={styles.editActions}>
               <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving} activeOpacity={0.7}>
@@ -409,8 +400,8 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     marginBottom: spacing.xs,
   },
-  langRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.s },
-  langArrowModal: { fontSize: 20, color: colors.textSecondary, marginBottom: spacing.m, paddingBottom: 2 },
+  langRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.s, marginBottom: spacing.s },
+  langArrowModal: { fontSize: 20, color: colors.textSecondary, marginBottom: 18 },
   editActions: { flexDirection: 'row', gap: spacing.s, marginTop: spacing.m },
   saveBtn: {
     flex: 1, backgroundColor: '#ffffff', borderRadius: radii.md,

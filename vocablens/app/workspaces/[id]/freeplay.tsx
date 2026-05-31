@@ -20,6 +20,12 @@ import Icon from '../../../components/ui/Icon';
 
 type Phase = 'loading' | 'question' | 'result';
 
+const limitNotes = (notes?: string | null): string | null => {
+  const trimmed = notes?.trim();
+  if (!trimmed) return null;
+  return trimmed.length > 100 ? `${trimmed.slice(0, 100)}...` : trimmed;
+};
+
 export default function FreePlayScreen() {
   const { activeWorkspace, db } = useWorkspace();
   const insets = useSafeAreaInsets();
@@ -145,9 +151,14 @@ export default function FreePlayScreen() {
           {phase === 'result' && (
             <View style={[styles.feedbackStrip, lastCorrect ? styles.feedbackCorrect : styles.feedbackWrong]}>
               <Icon name={lastCorrect ? 'check' : 'x'} size={18} color={lastCorrect ? colors.success : colors.error} />
-              <Text style={[styles.feedbackText, { color: lastCorrect ? colors.success : colors.error }]}>
-                {lastCorrect ? 'Correct!' : `Answer: ${current?.translation}`}
-              </Text>
+              <View style={styles.feedbackContent}>
+                <Text style={[styles.feedbackText, { color: lastCorrect ? colors.success : colors.error }]}>
+                  {lastCorrect ? `Correct: ${current?.translation}` : `Answer: ${current?.translation}`}
+                </Text>
+                {lastCorrect && limitNotes(current?.notes) && (
+                  <Text style={styles.feedbackNotes}>{limitNotes(current?.notes)}</Text>
+                )}
+              </View>
             </View>
           )}
         </View>
@@ -233,7 +244,14 @@ const styles = StyleSheet.create({
   },
   feedbackCorrect: { backgroundColor: 'rgba(112, 204, 129, 0.12)' },
   feedbackWrong: { backgroundColor: 'rgba(255, 107, 107, 0.12)' },
+  feedbackContent: { flex: 1 },
   feedbackText: { fontSize: 15, fontWeight: '500' },
+  feedbackNotes: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 3,
+    lineHeight: 18,
+  },
 
   inputSection: { paddingHorizontal: spacing.l, paddingBottom: spacing.l },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.s },

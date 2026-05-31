@@ -19,14 +19,16 @@ import { getVocabByWorkspace, createVocabItem } from '../../lib/db/queries/vocab
 import { getNewVocabItem } from '../../lib/scheduler/spacedRepetition';
 import { useRouter } from 'expo-router';
 import { useToast } from '../../components/overlays/ToastContext';
-import { colors, spacing, radii, typography, componentStyles } from '../../constants/theme';
+import { colors, spacing, radii, typography } from '../../constants/theme';
 import Icon from '../../components/ui/Icon';
+import LanguageSelect from '../../components/ui/LanguageSelect';
+import { areSameTranslationLanguage, normalizeTranslationLanguageCode } from '../../lib/translation/languages';
 
 export default function WorkspacesScreen() {
   const { workspaces, activeWorkspace, loading, error, createNewWorkspace, setWorkspace, db } = useWorkspace();
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
-  const [sourceLang, setSourceLang] = useState('en');
-  const [targetLang, setTargetLang] = useState('de');
+  const [sourceLang, setSourceLang] = useState('en-GB');
+  const [targetLang, setTargetLang] = useState('de-DE');
   const [modalVisible, setModalVisible] = useState(false);
   const [creating, setCreating] = useState(false);
   const [copyVocab, setCopyVocab] = useState(true);
@@ -41,16 +43,18 @@ export default function WorkspacesScreen() {
     }
     setCreating(true);
     try {
-      const ws = await createNewWorkspace(newWorkspaceName.trim(), sourceLang.trim() || 'en', targetLang.trim() || 'de');
+      const sourceCode = normalizeTranslationLanguageCode(sourceLang.trim() || 'en-GB');
+      const targetCode = normalizeTranslationLanguageCode(targetLang.trim() || 'de-DE');
+      const ws = await createNewWorkspace(newWorkspaceName.trim(), sourceCode, targetCode);
       
       const matchingWorkspace = workspaces.find(w => 
-        (w.source_lang.toLowerCase() === (sourceLang.trim() || 'en').toLowerCase() && w.target_lang.toLowerCase() === (targetLang.trim() || 'de').toLowerCase()) ||
-        (w.source_lang.toLowerCase() === (targetLang.trim() || 'de').toLowerCase() && w.target_lang.toLowerCase() === (sourceLang.trim() || 'en').toLowerCase())
+        (areSameTranslationLanguage(w.source_lang, sourceCode) && areSameTranslationLanguage(w.target_lang, targetCode)) ||
+        (areSameTranslationLanguage(w.source_lang, targetCode) && areSameTranslationLanguage(w.target_lang, sourceCode))
       );
 
       if (matchingWorkspace && copyVocab && db) {
         const oldVocab = await getVocabByWorkspace(db, matchingWorkspace.id);
-        const isInverted = matchingWorkspace.source_lang.toLowerCase() === (targetLang.trim() || 'de').toLowerCase();
+        const isInverted = areSameTranslationLanguage(matchingWorkspace.source_lang, targetCode);
         for (const item of oldVocab) {
           try {
             const word = isInverted ? item.translation : item.word;
@@ -64,8 +68,8 @@ export default function WorkspacesScreen() {
       }
 
       setNewWorkspaceName('');
-      setSourceLang('en');
-      setTargetLang('de');
+      setSourceLang('en-GB');
+      setTargetLang('de-DE');
       setModalVisible(false);
       showToast('Created', `Workspace "${ws.name}" created`, 'success');
       router.push(`/workspaces/${ws.id}`);
@@ -175,37 +179,26 @@ export default function WorkspacesScreen() {
               />
 
               <View style={styles.langRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputLabel}>Source</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="en"
-                    placeholderTextColor={colors.textCtaUnfocused}
-                    value={sourceLang}
-                    onChangeText={setSourceLang}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </View>
+                <LanguageSelect
+                  label="Source"
+                  value={sourceLang}
+                  onChange={setSourceLang}
+                  includeAutodetect
+                />
                 <Text style={styles.langArrowModal}>→</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputLabel}>Target</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="de"
-                    placeholderTextColor={colors.textCtaUnfocused}
-                    value={targetLang}
-                    onChangeText={setTargetLang}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </View>
+                <LanguageSelect
+                  label="Target"
+                  value={targetLang}
+                  onChange={setTargetLang}
+                />
               </View>
 
               {(() => {
+                const sourceCode = sourceLang.trim() || 'en-GB';
+                const targetCode = targetLang.trim() || 'de-DE';
                 const matchingWorkspace = workspaces.find(w => 
-                  (w.source_lang.toLowerCase() === (sourceLang.trim() || 'en').toLowerCase() && w.target_lang.toLowerCase() === (targetLang.trim() || 'de').toLowerCase()) ||
-                  (w.source_lang.toLowerCase() === (targetLang.trim() || 'de').toLowerCase() && w.target_lang.toLowerCase() === (sourceLang.trim() || 'en').toLowerCase())
+                  (areSameTranslationLanguage(w.source_lang, sourceCode) && areSameTranslationLanguage(w.target_lang, targetCode)) ||
+                  (areSameTranslationLanguage(w.source_lang, targetCode) && areSameTranslationLanguage(w.target_lang, sourceCode))
                 );
 
                 if (!matchingWorkspace) return null;
@@ -311,8 +304,8 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     marginBottom: spacing.m,
   },
-  langRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.m },
-  langArrowModal: { fontSize: 20, color: colors.textSecondary, marginBottom: spacing.l + 4 },
+  langRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.m, marginBottom: spacing.m },
+  langArrowModal: { fontSize: 20, color: colors.textSecondary, marginBottom: 18 },
   copyToggle: {
     flexDirection: 'row',
     alignItems: 'center',

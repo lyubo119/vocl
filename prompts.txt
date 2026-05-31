@@ -150,3 +150,11 @@ Call Stack
   construct (<native>)
   _callSuper (node_modules\@babel\runtime\helpers\callSuper.js)
   constructor (node_modules\expo-modules-core\src\errors\CodedError.ts)
+
+
+31.05.26
+- adjust the app to be available for all official languages that the translator supports, the app should recognize by the abbreviation of a language what language it is and adjust the https request translation link appropriately
+- by swiping the vocab to the right there should appear a yellow/orange field with a white pencil when clicking on it to edit the entry, so you can edit the word, translation or notes
+- when playing the game and guessing a word correctly it should show not only th translation but also the notes if there are any (the notes should be limited to 100 chars)
+- the app should access the real time of the phone to calculate the remaining time for the next available 10 vocab challenge at 08:00
+- when daily challenge completed find a more suitable trophy icon for the page (above the heading "Challenge Complete!"), take the one from the top bar and use it in white instead of the emoji one rn
