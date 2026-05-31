@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Platform,
   ActivityIndicator,
   Animated,
+  Easing,
   PanResponder,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -166,6 +167,19 @@ export default function VocabListScreen({ onAddWord }: Props) {
   const [editTranslation, setEditTranslation] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editSaving, setEditSaving] = useState(false);
+  const editSheetTranslateY = useRef(new Animated.Value(0)).current;
+  const editSheetHeightRef = useRef(0);
+  const editSavingRef = useRef(false);
+
+  useEffect(() => {
+    editSavingRef.current = editSaving;
+  }, [editSaving]);
+
+  useEffect(() => {
+    if (editingItem) {
+      editSheetTranslateY.setValue(0);
+    }
+  }, [editingItem, editSheetTranslateY]);
 
   useEffect(() => {
     const loadVocab = async () => {
@@ -292,6 +306,59 @@ export default function VocabListScreen({ onAddWord }: Props) {
     if (editSaving) return;
     setEditingItem(null);
   };
+
+  const closeEditBySwipe = (currentY: number) => {
+    if (editSavingRef.current) return;
+    const clampedY = Math.max(0, currentY);
+    const targetY = Math.max(editSheetHeightRef.current + 48, 520);
+    const remaining = Math.max(0, targetY - clampedY);
+    const duration = Math.min(180, Math.max(90, remaining * 0.35));
+
+    editSheetTranslateY.stopAnimation();
+    editSheetTranslateY.setValue(clampedY);
+    Animated.timing(editSheetTranslateY, {
+      toValue: targetY,
+      duration,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+      isInteraction: false,
+    }).start(() => {
+      setEditingItem(null);
+    });
+  };
+
+  const snapEditSheetBack = () => {
+    Animated.spring(editSheetTranslateY, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 160,
+      friction: 18,
+    }).start();
+  };
+
+  const editSheetPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        gestureState.dy > 6 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+      onPanResponderMove: (_, gestureState) => {
+        editSheetTranslateY.setValue(Math.max(0, gestureState.dy));
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (editSavingRef.current) {
+          snapEditSheetBack();
+          return;
+        }
+        if (gestureState.dy > 90 || gestureState.vy > 1) {
+          closeEditBySwipe(gestureState.dy);
+          return;
+        }
+        snapEditSheetBack();
+      },
+      onPanResponderTerminate: () => {
+        snapEditSheetBack();
+      },
+    })
+  ).current;
 
   const handleSaveEdit = async () => {
     if (!db || !editingItem) return;
@@ -438,7 +505,7 @@ export default function VocabListScreen({ onAddWord }: Props) {
       <Modal
         transparent
         visible={!!editingItem}
-        animationType="slide"
+        animationType="none"
         onRequestClose={handleCloseEdit}
       >
         <Pressable style={styles.editOverlay} onPress={handleCloseEdit}>
@@ -446,58 +513,71 @@ export default function VocabListScreen({ onAddWord }: Props) {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.editKeyboard}
           >
-            <Pressable style={styles.editSheet} onPress={e => e.stopPropagation()}>
-              <View style={styles.modalHandle} />
-              <Text style={styles.modalTitle}>Edit Word</Text>
-
-              <Text style={styles.modalLabel}>Word</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={editWord}
-                onChangeText={setEditWord}
-                placeholder="Word"
-                placeholderTextColor={colors.textCtaUnfocused}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-
-              <Text style={styles.modalLabel}>Translation</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={editTranslation}
-                onChangeText={setEditTranslation}
-                placeholder="Translation"
-                placeholderTextColor={colors.textCtaUnfocused}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-
-              <Text style={styles.modalLabel}>Notes</Text>
-              <TextInput
-                style={[styles.modalInput, styles.modalNotesInput]}
-                value={editNotes}
-                onChangeText={setEditNotes}
-                placeholder="Notes"
-                placeholderTextColor={colors.textCtaUnfocused}
-                multiline
-              />
-
-              <TouchableOpacity
-                style={[styles.saveEditBtn, editSaving && styles.btnDisabled]}
-                onPress={handleSaveEdit}
-                disabled={editSaving}
-                activeOpacity={0.7}
+            <Animated.View
+              style={{ transform: [{ translateY: editSheetTranslateY }] }}
+              {...editSheetPanResponder.panHandlers}
+            >
+              <Pressable
+                style={styles.editSheet}
+                onPress={e => e.stopPropagation()}
+                onLayout={(event) => {
+                  editSheetHeightRef.current = event.nativeEvent.layout.height;
+                }}
               >
-                {editSaving
-                  ? <ActivityIndicator size="small" color="#000000" />
-                  : <Text style={styles.saveEditBtnText}>Save Changes</Text>
-                }
-              </TouchableOpacity>
+                <Pressable style={styles.handleTouch} onPress={e => e.stopPropagation()}>
+                  <View style={styles.modalHandle} />
+                </Pressable>
+                <Text style={styles.modalTitle}>Edit Word</Text>
 
-              <TouchableOpacity style={styles.cancelEditBtn} onPress={handleCloseEdit} activeOpacity={0.7}>
-                <Text style={styles.cancelEditBtnText}>Cancel</Text>
-              </TouchableOpacity>
-            </Pressable>
+                <Text style={styles.modalLabel}>Word</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={editWord}
+                  onChangeText={setEditWord}
+                  placeholder="Word"
+                  placeholderTextColor={colors.textCtaUnfocused}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+
+                <Text style={styles.modalLabel}>Translation</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={editTranslation}
+                  onChangeText={setEditTranslation}
+                  placeholder="Translation"
+                  placeholderTextColor={colors.textCtaUnfocused}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+
+                <Text style={styles.modalLabel}>Notes</Text>
+                <TextInput
+                  style={[styles.modalInput, styles.modalNotesInput]}
+                  value={editNotes}
+                  onChangeText={setEditNotes}
+                  placeholder="Notes"
+                  placeholderTextColor={colors.textCtaUnfocused}
+                  multiline
+                />
+
+                <TouchableOpacity
+                  style={[styles.saveEditBtn, editSaving && styles.btnDisabled]}
+                  onPress={handleSaveEdit}
+                  disabled={editSaving}
+                  activeOpacity={0.7}
+                >
+                  {editSaving
+                    ? <ActivityIndicator size="small" color="#000000" />
+                    : <Text style={styles.saveEditBtnText}>Save Changes</Text>
+                  }
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.cancelEditBtn} onPress={handleCloseEdit} activeOpacity={0.7}>
+                  <Text style={styles.cancelEditBtnText}>Cancel</Text>
+                </TouchableOpacity>
+              </Pressable>
+            </Animated.View>
           </KeyboardAvoidingView>
         </Pressable>
       </Modal>
@@ -670,6 +750,10 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: spacing.l,
+  },
+  handleTouch: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
   },
   modalTitle: {
     fontSize: 22,
