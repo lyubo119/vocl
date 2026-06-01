@@ -12,6 +12,8 @@ type WorkspaceContextType = {
   error: string | null;
   lastWorkspaceId: string | null;
   db: SQLite.SQLiteDatabase | null;
+  vocabRevision: number;
+  bumpVocabularyRevision: () => void;
   createNewWorkspace: (name: string, sourceLang: string, targetLang: string) => Promise<Workspace>;
   setWorkspace: (workspaceId: string) => Promise<void>;
   removeWorkspace: (workspaceId: string) => Promise<void>;
@@ -27,6 +29,7 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
   const [lastWorkspaceId, setLastWorkspaceId] = useState<string | null>(null);
+  const [vocabRevision, setVocabRevision] = useState(0);
 
   useEffect(() => {
     const initialize = async () => {
@@ -91,6 +94,10 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [db, workspaces]);
 
+  const bumpVocabularyRevision = useCallback(() => {
+    setVocabRevision(prev => prev + 1);
+  }, []);
+
   const removeWorkspace = async (workspaceId: string) => {
     if (!db) throw new Error('Database not initialized');
     await deleteWorkspace(db, workspaceId);
@@ -118,6 +125,8 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
       error,
       lastWorkspaceId,
       db,
+      vocabRevision,
+      bumpVocabularyRevision,
       createNewWorkspace,
       setWorkspace,
       removeWorkspace,

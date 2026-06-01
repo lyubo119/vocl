@@ -30,7 +30,7 @@ type Props = {
 };
 
 export default function AddVocabModal({ visible, onClose, workspaceId }: Props) {
-  const { activeWorkspace } = useWorkspace();
+  const { activeWorkspace, bumpVocabularyRevision } = useWorkspace();
   const { showToast } = useToast();
 
   const [newWord, setNewWord] = useState('');
@@ -134,6 +134,7 @@ export default function AddVocabModal({ visible, onClose, workspaceId }: Props) 
         newNotes.trim() || undefined
       );
       await createVocabItem(db, newVocab);
+      bumpVocabularyRevision();
       showToast('Added', `"${newWord.trim()}" added to vocabulary`, 'success');
       onClose(); // reset handled via visible effect
     } catch (err) {

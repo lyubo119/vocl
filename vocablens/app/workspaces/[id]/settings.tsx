@@ -185,10 +185,7 @@ export default function WorkspaceSettingsScreen({ onNavigateToWorkspaces }: Prop
   const handleSwitchWorkspace = (workspaceId: string) => {
     if (!activeWorkspace || workspaceId === activeWorkspace.id) return;
     void setWorkspace(workspaceId);
-    router.replace({
-      pathname: '/workspaces/[id]',
-      params: { id: workspaceId, targetTab: 'settings' },
-    });
+    router.setParams({ id: workspaceId, targetTab: 'settings' });
   };
 
   return (

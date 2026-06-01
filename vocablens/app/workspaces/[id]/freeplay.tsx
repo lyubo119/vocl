@@ -27,7 +27,7 @@ const limitNotes = (notes?: string | null): string | null => {
 };
 
 export default function FreePlayScreen() {
-  const { activeWorkspace, db } = useWorkspace();
+  const { activeWorkspace, db, vocabRevision } = useWorkspace();
   const insets = useSafeAreaInsets();
   const [vocabPool, setVocabPool] = useState<any[]>([]);
   const [current, setCurrent] = useState<any | null>(null);
@@ -46,10 +46,12 @@ export default function FreePlayScreen() {
   useEffect(() => {
     if (!db || !workspaceId) return;
     loadVocab();
-  }, [db, workspaceId]);
+  }, [db, workspaceId, vocabRevision]);
 
   const loadVocab = async () => {
     if (!db || !workspaceId) return;
+    setPhase('loading');
+    setErrorMessage(null);
     try {
       const all = (await getVocabByWorkspace(db, workspaceId)).filter(v => !v.is_deactivated);
       if (all.length === 0) {
@@ -58,6 +60,8 @@ export default function FreePlayScreen() {
         return;
       }
       setVocabPool(all);
+      setUserAnswer('');
+      setLastCorrect(null);
       pickRandom(all);
     } catch {
       setErrorMessage('Failed to load vocabulary.');

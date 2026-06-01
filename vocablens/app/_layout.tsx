@@ -98,7 +98,7 @@ export default function RootLayout() {
               headerShadowVisible: false,
               headerTitleStyle: { fontWeight: '500' },
               contentStyle: { backgroundColor: colors.bgPrimary },
-              animation: 'fade',
+              animation: 'none',
               headerShown: false,
             }}
           />

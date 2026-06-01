@@ -124,7 +124,7 @@ export function PlayScreenContent({ forcedMode }: PlayScreenProps = {}) {
 // ── Challenge Mode ────────────────────────────────────────────────────────────
 
 function ChallengeMode() {
-  const { activeWorkspace, db } = useWorkspace();
+  const { activeWorkspace, db, vocabRevision } = useWorkspace();
   const [vocabItems, setVocabItems] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');
@@ -144,7 +144,7 @@ function ChallengeMode() {
   useEffect(() => {
     if (!db || !workspaceId) return;
     initChallenge();
-  }, [db, workspaceId]);
+  }, [db, workspaceId, vocabRevision]);
 
   useEffect(() => {
     if (phase !== 'done_today') return;
@@ -154,6 +154,8 @@ function ChallengeMode() {
 
   const initChallenge = async () => {
     if (!db || !workspaceId) return;
+    setPhase('loading');
+    setErrorMessage(null);
     try {
       // Check if today's challenge is already completed
       const today = getTodayDateString();
@@ -473,7 +475,7 @@ Come back in {hoursLeft}h {minsLeft}m for a new one.
 // ── Free Play Mode ────────────────────────────────────────────────────────────
 
 function FreePlayMode() {
-  const { activeWorkspace, db } = useWorkspace();
+  const { activeWorkspace, db, vocabRevision } = useWorkspace();
   const [vocabPool, setVocabPool] = useState<any[]>([]);
   const [current, setCurrent] = useState<any | null>(null);
   const [userAnswer, setUserAnswer] = useState('');
@@ -491,10 +493,12 @@ function FreePlayMode() {
   useEffect(() => {
     if (!db || !workspaceId) return;
     loadVocab();
-  }, [db, workspaceId]);
+  }, [db, workspaceId, vocabRevision]);
 
   const loadVocab = async () => {
     if (!db || !workspaceId) return;
+    setPhase('loading');
+    setErrorMessage(null);
     try {
       const all = (await getVocabByWorkspace(db, workspaceId)).filter(v => !v.is_deactivated);
       if (all.length === 0) {
@@ -503,6 +507,8 @@ function FreePlayMode() {
         return;
       }
       setVocabPool(all);
+      setUserAnswer('');
+      setLastCorrect(null);
       pickRandom(all);
     } catch {
       setErrorMessage('Failed to load vocabulary.');

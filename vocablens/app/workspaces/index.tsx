@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,9 @@ import {
   Platform,
   Pressable,
   ActivityIndicator,
+  Animated,
+  Easing,
+  PanResponder,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWorkspace } from '../../hooks/WorkspaceContext';
@@ -32,9 +35,69 @@ export default function WorkspacesScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [creating, setCreating] = useState(false);
   const [copyVocab, setCopyVocab] = useState(true);
+  const sheetTranslateY = useRef(new Animated.Value(0)).current;
+  const sheetHeightRef = useRef(0);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { showToast } = useToast();
+
+  useEffect(() => {
+    if (modalVisible) {
+      sheetTranslateY.setValue(0);
+    }
+  }, [modalVisible, sheetTranslateY]);
+
+  const closeCreateModal = () => {
+    setModalVisible(false);
+  };
+
+  const closeCreateModalBySwipe = (currentY: number) => {
+    const clampedY = Math.max(0, currentY);
+    const targetY = Math.max(sheetHeightRef.current + 48, 520);
+    const remaining = Math.max(0, targetY - clampedY);
+    const duration = Math.min(180, Math.max(90, remaining * 0.35));
+
+    sheetTranslateY.stopAnimation();
+    sheetTranslateY.setValue(clampedY);
+    Animated.timing(sheetTranslateY, {
+      toValue: targetY,
+      duration,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+      isInteraction: false,
+    }).start(() => {
+      setModalVisible(false);
+    });
+  };
+
+  const snapCreateModalBack = () => {
+    Animated.spring(sheetTranslateY, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 160,
+      friction: 18,
+    }).start();
+  };
+
+  const createModalPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        gestureState.dy > 6 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+      onPanResponderMove: (_, gestureState) => {
+        sheetTranslateY.setValue(Math.max(0, gestureState.dy));
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 90 || gestureState.vy > 1) {
+          closeCreateModalBySwipe(gestureState.dy);
+          return;
+        }
+        snapCreateModalBack();
+      },
+      onPanResponderTerminate: () => {
+        snapCreateModalBack();
+      },
+    })
+  ).current;
 
   const handleCreateWorkspace = async () => {
     if (!newWorkspaceName.trim()) {
@@ -70,9 +133,11 @@ export default function WorkspacesScreen() {
       setNewWorkspaceName('');
       setSourceLang('en-GB');
       setTargetLang('de-DE');
-      setModalVisible(false);
+      closeCreateModal();
       showToast('Created', `Workspace "${ws.name}" created`, 'success');
-      router.push(`/workspaces/${ws.id}`);
+      requestAnimationFrame(() => {
+        router.replace(`/workspaces/${ws.id}`);
+      });
     } catch (err) {
       showToast('Error', err instanceof Error ? err.message : 'Failed to create workspace', 'error');
     } finally {
@@ -82,7 +147,9 @@ export default function WorkspacesScreen() {
 
   const handleSelectWorkspace = (workspaceId: string) => {
     void setWorkspace(workspaceId);
-    router.push(`/workspaces/${workspaceId}`);
+    requestAnimationFrame(() => {
+      router.replace(`/workspaces/${workspaceId}`);
+    });
   };
 
   if (loading) {
@@ -155,15 +222,27 @@ export default function WorkspacesScreen() {
 
       {/* Create modal */}
       <Modal
-        animationType="slide"
+        animationType="none"
         transparent
         visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={closeCreateModal}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setModalVisible(false)}>
+        <Pressable style={styles.modalOverlay} onPress={closeCreateModal}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboard}>
-            <Pressable style={styles.modalContent} onPress={e => e.stopPropagation()}>
-              <View style={styles.modalHandle} />
+            <Animated.View
+              style={{ transform: [{ translateY: sheetTranslateY }] }}
+              {...createModalPanResponder.panHandlers}
+            >
+            <Pressable
+              style={styles.modalContent}
+              onPress={e => e.stopPropagation()}
+              onLayout={(event) => {
+                sheetHeightRef.current = event.nativeEvent.layout.height;
+              }}
+            >
+              <Pressable style={styles.handleTouch} onPress={e => e.stopPropagation()}>
+                <View style={styles.modalHandle} />
+              </Pressable>
               <Text style={styles.modalTitle}>Create Workspace</Text>
               <Text style={styles.modalSubtitle}>Set up a new vocabulary space for a language pair.</Text>
 
@@ -227,10 +306,11 @@ export default function WorkspacesScreen() {
                 }
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.cancelButton} onPress={closeCreateModal} activeOpacity={0.7}>
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
             </Pressable>
+            </Animated.View>
           </KeyboardAvoidingView>
         </Pressable>
       </Modal>
@@ -292,6 +372,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.m,
   },
   modalHandle: { width: 36, height: 4, backgroundColor: colors.divider, borderRadius: 2, alignSelf: 'center', marginBottom: spacing.l },
+  handleTouch: { alignSelf: 'stretch', alignItems: 'center' },
   modalTitle: { fontSize: 22, fontWeight: '700', color: '#ffffff', marginBottom: spacing.xs },
   modalSubtitle: { ...typography.body, marginBottom: spacing.l },
   inputLabel: { ...typography.smallCaps, marginBottom: spacing.xs },

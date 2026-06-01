@@ -158,3 +158,24 @@ Call Stack
 - when playing the game and guessing a word correctly it should show not only th translation but also the notes if there are any (the notes should be limited to 100 chars)
 - the app should access the real time of the phone to calculate the remaining time for the next available 10 vocab challenge at 08:00
 - when daily challenge completed find a more suitable trophy icon for the page (above the heading "Challenge Complete!"), take the one from the top bar and use it in white instead of the emoji one rn
+
+
+01.06.26
+- when a new entry was made directly refresh the 10 vocab and infinite game mode page and the word list, currently i need to leave and go back to see the new entered word
+- when adding a new workspace the overlay window for entering the information should be exactly closable as the overlayt of entering a new vocab (swipe dow should also be possible!)
+- when entering/switching a workspace the screen shouldnt flicker or go white for a short time, it should just happen immediately, if time is needed make a minimalistic animation for the box clicked on (workspace) but not the whole page and no overlay
+- on the voc list page the mastered vocabs should be counted (the ones that have an accuracy of 80%+)
+- on the statistics page the average score is not neccessary because we already have the avg session score, so delete it and threfore make this layout instead
+  - left top: best score
+  - right top: overall accuracy
+  - left middle: avg session score
+  - right middle: challenge accuracy
+  - at the bottom one card with width of two: completion rate
+
+  - for the output and impact section add suitable icons for total answered and correct answers and make the "correct answers" box look like the other ones
+  - for the improvement over time section make a smooth animation only for the white toggle when switching between 7 days and 30 days + at the 30 days graph dont use
+  weekday letters under the bars but rather the daydate of the bar each 5 days, so only each fifth is going to have a daydate beneath it
+
+
+2.
+daily reminders with expo fix?

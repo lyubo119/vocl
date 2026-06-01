@@ -150,7 +150,7 @@ function SwipeActionsRow({ children, onDelete, onEdit }: SwipeActionsRowProps) {
 }
 
 export default function VocabListScreen({ onAddWord }: Props) {
-  const { activeWorkspace } = useWorkspace();
+  const { activeWorkspace, vocabRevision } = useWorkspace();
   const { showToast } = useToast();
   const workspaceId = activeWorkspace?.id ?? '';
   const insets = useSafeAreaInsets();
@@ -195,7 +195,7 @@ export default function VocabListScreen({ onAddWord }: Props) {
       }
     };
     if (workspaceId) loadVocab();
-  }, [workspaceId]);
+  }, [workspaceId, vocabRevision]);
 
   const handleExport = async () => {
     setMenuVisible(false);
@@ -431,7 +431,9 @@ export default function VocabListScreen({ onAddWord }: Props) {
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{vocabItems.filter(v => v.weight < 0.2).length}</Text>
+          <Text style={styles.statValue}>
+            {vocabItems.filter(v => v.total_attempts > 0 && (v.total_correct / v.total_attempts) >= 0.8).length}
+          </Text>
           <Text style={styles.statLabel}>Mastered</Text>
         </View>
         <View style={styles.statDivider} />

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWorkspace } from '../../../hooks/WorkspaceContext';
@@ -17,6 +18,7 @@ import Icon from '../../../components/ui/Icon';
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const ACCENT = colors.accentPurple; // #d1a0d7
+const TOGGLE_OPTION_WIDTH = 84;
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
@@ -293,15 +295,19 @@ const calStyles = StyleSheet.create({
 });
 
 /** Mini bar chart — pure RN, no libs */
-function MiniBarChart({ data, label }: { data: DailyAccuracy[]; label: string }) {
+function MiniBarChart({ data, label, range }: { data: DailyAccuracy[]; label: string; range: '7d' | '30d' }) {
   if (data.length === 0) return null;
   const maxAcc = 100;
-  const barW = Math.floor(280 / data.length) - 3;
+  const gap = range === '30d' ? 2 : 3;
+  const chartW = range === '30d' ? 300 : 280;
+  const barW = Math.max(Math.floor(chartW / data.length) - gap, range === '30d' ? 8 : 6);
+  const totalChartW = data.length * barW + Math.max(0, data.length - 1) * gap;
+  const dateLabelW = range === '30d' ? 22 : barW;
 
   return (
     <View style={barStyles.container}>
       <Text style={barStyles.title}>{label}</Text>
-      <View style={barStyles.chart}>
+      <View style={[barStyles.chart, { gap, width: totalChartW }]}>
         {data.map((d, i) => {
           const hasData = d.total > 0;
           const height = hasData ? Math.max(4, (d.accuracy / maxAcc) * 80) : 4;
@@ -320,12 +326,27 @@ function MiniBarChart({ data, label }: { data: DailyAccuracy[]; label: string })
           );
         })}
       </View>
-      <View style={barStyles.labels}>
-        {data.map((d, i) => (
-          <Text key={i} style={[barStyles.dateLabel, { width: Math.max(barW, 6) }]}>
-            {i % Math.ceil(data.length / 7) === 0 ? getDayLabel(d.date) : ''}
-          </Text>
-        ))}
+      <View style={[barStyles.labels, { width: totalChartW }]}>
+        {data.map((d, i) => {
+          const showLabel = range === '30d' ? i % 5 === 0 : i % Math.ceil(data.length / 7) === 0;
+          const dateLabel = range === '30d' ? String(parseLocalDateString(d.date).getDate()) : getDayLabel(d.date);
+          const labelCenter = i * (barW + gap) + barW / 2;
+          return (
+            <Text
+              key={i}
+              numberOfLines={1}
+              style={[
+                barStyles.dateLabel,
+                {
+                  left: labelCenter - dateLabelW / 2,
+                  width: dateLabelW,
+                },
+              ]}
+            >
+              {showLabel ? dateLabel : ''}
+            </Text>
+          );
+        })}
       </View>
     </View>
   );
@@ -346,7 +367,6 @@ const barStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     height: 84,
-    gap: 3,
   },
   barWrap: {
     justifyContent: 'flex-end',
@@ -368,10 +388,11 @@ const barStyles = StyleSheet.create({
     backgroundColor: '#7ca8d7',
   },
   labels: {
-    flexDirection: 'row',
-    gap: 3,
+    height: 12,
+    position: 'relative',
   },
   dateLabel: {
+    position: 'absolute',
     fontSize: 9,
     color: colors.textSecondary,
     textAlign: 'center',
@@ -412,6 +433,7 @@ export default function StatsScreen() {
   const [stats, setStats] = useState<StatsSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [chartRange, setChartRange] = useState<'7d' | '30d'>('7d');
+  const toggleTranslateX = useRef(new Animated.Value(0)).current;
 
   const loadStats = useCallback(async () => {
     if (!db || !activeWorkspace?.id) return;
@@ -430,6 +452,14 @@ export default function StatsScreen() {
   useEffect(() => {
     loadStats();
   }, [loadStats]);
+
+  useEffect(() => {
+    Animated.timing(toggleTranslateX, {
+      toValue: chartRange === '30d' ? TOGGLE_OPTION_WIDTH : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [chartRange, toggleTranslateX]);
 
   if (loading) {
     return (
@@ -493,16 +523,15 @@ export default function StatsScreen() {
       <View style={styles.section}>
         <SectionHeader icon="target" title="Quality Metrics" />
         <View style={styles.row2}>
+          <StatCard label="Best Score" value={`${stats.bestScore}/10`} accent icon="trophy" small />
           <StatCard label="Overall Accuracy" value={stats.overallAccuracy} unit="%" icon="activity" accent />
+        </View>
+        <View style={[styles.row2, { marginTop: spacing.s }]}>
+          <StatCard label="Avg Session Score" value={stats.avgScore} unit="/10" icon="zap" />
           <StatCard label="Challenge Accuracy" value={stats.challengeAccuracy} unit="%" icon="trophy" />
         </View>
         <View style={[styles.row2, { marginTop: spacing.s }]}>
           <StatCard label="Completion Rate" value={stats.completionRate} unit="%" icon="check" />
-          <StatCard label="Avg Session Score" value={stats.avgScore} unit="/10" icon="zap" />
-        </View>
-        <View style={[styles.row2, { marginTop: spacing.s }]}>
-          <StatCard label="Best Score" value={`${stats.bestScore}/10`} accent icon="trophy" small />
-          <StatCard label="Average Score" value={`${stats.avgScore}/10`} small />
         </View>
       </View>
 
@@ -511,20 +540,29 @@ export default function StatsScreen() {
         <SectionHeader icon="trend-up" title="Improvement Over Time" />
         <View style={styles.card}>
           <View style={styles.chartToggleRow}>
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.chartToggleIndicator,
+                { transform: [{ translateX: toggleTranslateX }] },
+              ]}
+            />
             <TouchableOpacity
-              style={[styles.chartToggleBtn, chartRange === '7d' && styles.chartToggleActive]}
+              style={styles.chartToggleBtn}
               onPress={() => setChartRange('7d')}
+              activeOpacity={0.7}
             >
               <Text style={[styles.chartToggleText, chartRange === '7d' && styles.chartToggleTextActive]}>7 days</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.chartToggleBtn, chartRange === '30d' && styles.chartToggleActive]}
+              style={styles.chartToggleBtn}
               onPress={() => setChartRange('30d')}
+              activeOpacity={0.7}
             >
               <Text style={[styles.chartToggleText, chartRange === '30d' && styles.chartToggleTextActive]}>30 days</Text>
             </TouchableOpacity>
           </View>
-          <MiniBarChart data={chartData} label="Accuracy % per day" />
+          <MiniBarChart data={chartData} label="Accuracy % per day" range={chartRange} />
           <View style={styles.chartLegend}>
             <View style={[styles.legendDot, { backgroundColor: ACCENT }]} />
             <Text style={styles.legendText}>≥80% accuracy</Text>
@@ -570,8 +608,8 @@ export default function StatsScreen() {
         <SectionHeader icon="bar-chart-2" title="Output & Impact" />
         <View style={styles.row3}>
           <StatCard label="Challenges Done" value={stats.totalCompletedSessions} icon="trophy" small />
-          <StatCard label="Total Answered" value={stats.totalAnswered} small />
-          <StatCard label="Correct Answers" value={stats.totalCorrect} accent small />
+          <StatCard label="Total Answered" value={stats.totalAnswered} icon="activity" small />
+          <StatCard label="Correct Answers" value={stats.totalCorrect} icon="check-circle" small />
         </View>
         <View style={[styles.row2, { marginTop: spacing.s }]}>
           <StatCard label="Free Play Answers" value={stats.totalFreePlayAnswered} icon="infinity" small />
@@ -699,12 +737,24 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     padding: 3,
     alignSelf: 'flex-start',
-    gap: 2,
+    position: 'relative',
+    width: TOGGLE_OPTION_WIDTH * 2 + 6,
+  },
+  chartToggleIndicator: {
+    position: 'absolute',
+    left: 3,
+    top: 3,
+    bottom: 3,
+    width: TOGGLE_OPTION_WIDTH,
+    borderRadius: radii.sm,
+    backgroundColor: '#ffffff',
   },
   chartToggleBtn: {
+    width: TOGGLE_OPTION_WIDTH,
     paddingVertical: 5,
-    paddingHorizontal: spacing.m,
     borderRadius: radii.sm,
+    alignItems: 'center',
+    zIndex: 1,
   },
   chartToggleActive: {
     backgroundColor: '#ffffff',

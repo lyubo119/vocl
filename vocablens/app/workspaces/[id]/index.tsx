@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import BottomTabBar from '../../../components/navigation/BottomTabBar';
@@ -19,7 +19,7 @@ export default function WorkspaceLayout() {
   const [activeTab, setActiveTab] = useState<string>(targetTab === 'stats' || targetTab === 'vocab' || targetTab === 'settings' ? targetTab : 'play');
   const [addModalVisible, setAddModalVisible] = useState(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (id && activeWorkspace?.id !== id) {
       void setWorkspace(id);
     }
